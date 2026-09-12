@@ -59,7 +59,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="landing-footer"><Logo /><span>Private email aliases for batforum.online</span></footer>
+      <footer className="landing-footer"><Logo /><span>Private email aliases for batform.online</span></footer>
     </main>
   );
 }

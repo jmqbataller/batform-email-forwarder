@@ -1,7 +1,7 @@
 # BatMail
 
-BatMail is a private email-alias service for `batforum.online`. It generates
-random addresses at `mail.batforum.online`, forwards their messages to the
+BatMail is a private email-alias service for `batform.online`. It generates
+random addresses at `mail.batform.online`, forwards their messages to the
 owner's verified inbox, and relays replies without exposing that inbox address
 to the original sender.
 
@@ -10,12 +10,12 @@ to the original sender.
 - **Next.js on Vercel** — public site, authentication, and alias dashboard
 - **Supabase** — Auth, Postgres, Row Level Security, Vault, and the inbound Edge Function
 - **Resend** — inbound MX handling, signed webhooks, message retrieval, and delivery
-- **Spaceship** — DNS for `batforum.online`
+- **Spaceship** — DNS for `batform.online`
 
 The email-processing path is independent of Vercel:
 
 ```text
-sender -> random@mail.batforum.online -> Resend Inbound
+sender -> random@mail.batform.online -> Resend Inbound
                                           |
                                           v
                                   Supabase Edge Function
@@ -25,7 +25,7 @@ sender -> random@mail.batforum.online -> Resend Inbound
                                           v
                                       owner inbox
 
-owner reply -> reply-token@mail.batforum.online -> Edge Function -> sender
+owner reply -> reply-token@mail.batform.online -> Edge Function -> sender
 ```
 
 ## Local development
@@ -70,12 +70,12 @@ web address and allow `/auth/callback` as a redirect URL.
 
 Import this repository as a Next.js project. The production-safe public values
 are in `.env.production`; no Supabase service key or Resend secret is required
-by Vercel. Add `aliases.batforum.online` to the project, then point the
+by Vercel. Add `aliases.batform.online` to the project, then point the
 `aliases` DNS host to the value Vercel provides.
 
 ### Resend and Spaceship DNS
 
-Add `mail.batforum.online` in Resend, enable receiving, and subscribe a webhook
+Add `mail.batform.online` in Resend, enable receiving, and subscribe a webhook
 to `email.received` at the Supabase Edge Function URL. In Spaceship, add the
 exact DKIM, sending SPF, return-path, and receiving MX records issued by Resend.
 Do not reuse the root domain's MX records.
@@ -84,7 +84,7 @@ Do not reuse the root domain's MX records.
 
 1. Register the allowlisted owner, sign in, and create an alias.
 2. Send a message from a different account to that alias.
-3. Confirm the protected inbox sees a random `@mail.batforum.online` sender and
+3. Confirm the protected inbox sees a random `@mail.batform.online` sender and
    receives the original body and attachments.
 4. Reply from the exact protected inbox and confirm the original sender receives
    it from the public alias.

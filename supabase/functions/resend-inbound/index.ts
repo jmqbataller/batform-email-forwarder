@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.5
 import { Resend } from "npm:resend@6.1.0";
 import { z } from "npm:zod@4.1.0";
 
-const forwardingDomain = "mail.batforum.online";
+const forwardingDomain = "mail.batform.online";
 const alphabet = "23456789abcdefghjkmnpqrstuvwxyz";
 
 const receivedEventSchema = z.object({
