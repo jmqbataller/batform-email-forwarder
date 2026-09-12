@@ -1,4 +1,5 @@
-create extension if not exists citext;
+create schema if not exists extensions;
+create extension if not exists citext with schema extensions;
 
 create table public.aliases (
   id uuid primary key default gen_random_uuid(),
@@ -51,7 +52,7 @@ create policy "Users can create aliases for themselves"
   on public.aliases for insert to authenticated
   with check (
     user_id = (select auth.uid())
-    and destination = lower((select auth.jwt()->>'email'))
+    and destination = lower((select auth.jwt()) ->> 'email')
   );
 
 create policy "Users can update their aliases"
@@ -59,7 +60,7 @@ create policy "Users can update their aliases"
   using (user_id = (select auth.uid()))
   with check (
     user_id = (select auth.uid())
-    and destination = lower((select auth.jwt()->>'email'))
+    and destination = lower((select auth.jwt()) ->> 'email')
   );
 
 create policy "Users can delete their aliases"
@@ -75,6 +76,11 @@ create policy "Users can view activity for their aliases"
         and aliases.user_id = (select auth.uid())
     )
   );
+
+create policy "No direct client access to reverse aliases"
+  on public.reverse_aliases for all to anon, authenticated
+  using (false)
+  with check (false);
 
 create or replace function public.increment_alias_forwarded(target_alias_id uuid)
 returns void
