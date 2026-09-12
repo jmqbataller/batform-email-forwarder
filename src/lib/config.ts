@@ -7,6 +7,9 @@ export const siteUrl =
 export const allowSignups =
   process.env.NEXT_PUBLIC_ALLOW_SIGNUPS === "true";
 
+export const signupAllowedEmail =
+  process.env.SIGNUP_ALLOWED_EMAIL?.trim().toLowerCase() || "";
+
 export function requireServerConfig() {
   const values = {
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
