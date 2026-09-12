@@ -1,13 +1,10 @@
-import { NextResponse } from "next/server";
-import { Resend } from "resend";
-import { z } from "zod";
-import { forwardingDomain, requireServerConfig } from "@/lib/config";
-import { getLocalPart, maskedFrom, parseAddress } from "@/lib/email";
-import { randomToken } from "@/lib/random";
-import { createAdminClient } from "@/lib/supabase/admin";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
+import { Resend } from "npm:resend@6.1.0";
+import { z } from "npm:zod@4.1.0";
 
-export const runtime = "nodejs";
-export const maxDuration = 60;
+const forwardingDomain = "mail.batforum.online";
+const alphabet = "23456789abcdefghjkmnpqrstuvwxyz";
 
 const receivedEventSchema = z.object({
   type: z.literal("email.received"),
@@ -41,6 +38,47 @@ type ReverseAlias = {
   aliases: Alias;
 };
 
+function randomToken(length: number) {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  return Array.from(bytes, (byte) => alphabet.charAt(byte % alphabet.length)).join("");
+}
+
+function parseAddress(value: string) {
+  const match = value.match(/^\s*(?:"?([^"<]*)"?\s*)?<([^>]+)>\s*$/);
+  return {
+    name: match?.[1]?.trim() || undefined,
+    email: (match?.[2] || value).trim().toLowerCase(),
+  };
+}
+
+function getLocalPart(value: string) {
+  const { email } = parseAddress(value);
+  const at = email.lastIndexOf("@");
+  if (at < 1 || email.slice(at + 1) !== forwardingDomain) return null;
+  return email.slice(0, at);
+}
+
+function maskedFrom(localPart: string) {
+  return `${localPart}@${forwardingDomain}`;
+}
+
+function bufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
+}
+
+async function getSecret(admin: SupabaseClient, secretName: string) {
+  const { data, error } = await admin.rpc("get_batmail_secret", {
+    secret_name: secretName,
+  });
+  if (error || !data) throw new Error(`Missing server secret: ${secretName}`);
+  return data as string;
+}
+
 async function loadAttachments(resend: Resend, emailId: string): Promise<Attachment[]> {
   const { data, error } = await resend.emails.receiving.attachments.list({ emailId });
   if (error) throw new Error(`Unable to list attachments: ${error.message}`);
@@ -54,10 +92,9 @@ async function loadAttachments(resend: Resend, emailId: string): Promise<Attachm
   for (const item of items) {
     const response = await fetch(item.download_url);
     if (!response.ok) throw new Error(`Unable to download attachment: ${item.filename}`);
-    const buffer = Buffer.from(await response.arrayBuffer());
     files.push({
       filename: item.filename,
-      content: buffer.toString("base64"),
+      content: bufferToBase64(await response.arrayBuffer()),
       contentType: item.content_type,
     });
   }
@@ -65,7 +102,7 @@ async function loadAttachments(resend: Resend, emailId: string): Promise<Attachm
 }
 
 async function getOrCreateReverseAlias(
-  admin: ReturnType<typeof createAdminClient>,
+  admin: SupabaseClient,
   alias: Alias,
   senderEmail: string,
 ) {
@@ -100,40 +137,52 @@ async function getOrCreateReverseAlias(
   throw new Error("Unable to create a reply address");
 }
 
-export async function POST(request: Request) {
+Deno.serve(async (request) => {
   let eventRecordId: string | null = null;
-  let admin: ReturnType<typeof createAdminClient> | null = null;
+  let admin: SupabaseClient | null = null;
 
   try {
-    const config = requireServerConfig();
-    const resend = new Resend(config.resendApiKey);
-    admin = createAdminClient();
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceRoleKey) throw new Error("Supabase runtime configuration is missing");
+    admin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const [resendApiKey, webhookSecret] = await Promise.all([
+      getSecret(admin, "batmail_resend_api_key"),
+      getSecret(admin, "batmail_resend_webhook_secret"),
+    ]);
+    const resend = new Resend(resendApiKey);
     const payload = await request.text();
     const id = request.headers.get("svix-id");
     const timestamp = request.headers.get("svix-timestamp");
     const signature = request.headers.get("svix-signature");
-    if (!id || !timestamp || !signature) return new NextResponse("Missing signature", { status: 400 });
+    if (!id || !timestamp || !signature) return new Response("Missing signature", { status: 400 });
 
     const verified = resend.webhooks.verify({
       payload,
       headers: { id, timestamp, signature },
-      webhookSecret: config.resendWebhookSecret,
+      webhookSecret,
     });
     const parsed = receivedEventSchema.safeParse(verified);
-    if (!parsed.success) return NextResponse.json({ accepted: true });
+    if (!parsed.success) return Response.json({ accepted: true });
 
     const event = parsed.data.data;
     const recipientParts = event.to
-      .map((address) => getLocalPart(address, forwardingDomain))
+      .map(getLocalPart)
       .filter((part): part is string => Boolean(part));
-    if (!recipientParts.length) return NextResponse.json({ accepted: true });
+    if (!recipientParts.length) return Response.json({ accepted: true });
 
     const { data: received, error: receivedError } = await resend.emails.receiving.get(event.email_id);
-    if (receivedError || !received) throw new Error(`Unable to retrieve received email: ${receivedError?.message || "unknown error"}`);
+    if (receivedError || !received) {
+      throw new Error(`Unable to retrieve received email: ${receivedError?.message || "unknown error"}`);
+    }
     const attachments = await loadAttachments(resend, event.email_id);
     const sender = parseAddress(event.from);
 
-    // A message to a reverse alias is a reply from the protected inbox.
     const reverseResult = await admin
       .from("reverse_aliases")
       .select("id, token, sender_email, alias_id, aliases!inner(id,user_id,local_part,destination,enabled)")
@@ -145,7 +194,7 @@ export async function POST(request: Request) {
       const reverse = reverseResult.data as unknown as ReverseAlias;
       const alias = reverse.aliases;
       if (!alias.enabled || sender.email !== alias.destination.toLowerCase()) {
-        return NextResponse.json({ accepted: true, blocked: true });
+        return Response.json({ accepted: true, blocked: true });
       }
 
       const inserted = await admin.from("email_events").insert({
@@ -154,28 +203,27 @@ export async function POST(request: Request) {
         direction: "reply",
         original_from: sender.email,
         original_to: reverse.sender_email,
-        masked_sender: maskedFrom(alias.local_part, forwardingDomain),
+        masked_sender: maskedFrom(alias.local_part),
         subject: event.subject || null,
         status: "processing",
       }).select("id").single();
-      if (inserted.error?.code === "23505") return NextResponse.json({ accepted: true, duplicate: true });
+      if (inserted.error?.code === "23505") return Response.json({ accepted: true, duplicate: true });
       if (inserted.error) throw inserted.error;
       eventRecordId = inserted.data.id;
 
       const { error: sendError } = await resend.emails.send({
-        from: maskedFrom(alias.local_part, forwardingDomain),
+        from: maskedFrom(alias.local_part),
         to: [reverse.sender_email],
-        replyTo: maskedFrom(alias.local_part, forwardingDomain),
+        replyTo: maskedFrom(alias.local_part),
         subject: event.subject || "(no subject)",
         ...(received.html ? { html: received.html } : { text: received.text || "" }),
         attachments,
       });
       if (sendError) throw new Error(`Reply delivery failed: ${sendError.message}`);
       await admin.from("email_events").update({ status: "forwarded" }).eq("id", eventRecordId);
-      return NextResponse.json({ accepted: true });
+      return Response.json({ accepted: true });
     }
 
-    // Otherwise this is a new message to a user's public alias.
     const aliasResult = await admin
       .from("aliases")
       .select("id,user_id,local_part,destination,enabled")
@@ -183,7 +231,7 @@ export async function POST(request: Request) {
       .eq("enabled", true)
       .limit(1)
       .maybeSingle();
-    if (!aliasResult.data) return NextResponse.json({ accepted: true, unmatched: true });
+    if (!aliasResult.data) return Response.json({ accepted: true, unmatched: true });
     const alias = aliasResult.data as Alias;
 
     const inserted = await admin.from("email_events").insert({
@@ -191,16 +239,16 @@ export async function POST(request: Request) {
       provider_email_id: event.email_id,
       direction: "inbound",
       original_from: sender.email,
-      original_to: maskedFrom(alias.local_part, forwardingDomain),
+      original_to: maskedFrom(alias.local_part),
       subject: event.subject || null,
       status: "processing",
     }).select("id").single();
-    if (inserted.error?.code === "23505") return NextResponse.json({ accepted: true, duplicate: true });
+    if (inserted.error?.code === "23505") return Response.json({ accepted: true, duplicate: true });
     if (inserted.error) throw inserted.error;
     eventRecordId = inserted.data.id;
 
     const replyToken = await getOrCreateReverseAlias(admin, alias, sender.email);
-    const protectedSender = maskedFrom(replyToken, forwardingDomain);
+    const protectedSender = maskedFrom(replyToken);
     const { error: sendError } = await resend.emails.send({
       from: protectedSender,
       to: [alias.destination],
@@ -215,7 +263,7 @@ export async function POST(request: Request) {
       admin.from("email_events").update({ status: "forwarded", masked_sender: protectedSender }).eq("id", eventRecordId),
       admin.rpc("increment_alias_forwarded", { target_alias_id: alias.id }),
     ]);
-    return NextResponse.json({ accepted: true });
+    return Response.json({ accepted: true });
   } catch (error) {
     if (admin && eventRecordId) {
       await admin.from("email_events").update({
@@ -224,6 +272,6 @@ export async function POST(request: Request) {
       }).eq("id", eventRecordId);
     }
     console.error("Inbound email processing failed", error);
-    return new NextResponse("Email processing failed", { status: 500 });
+    return new Response("Email processing failed", { status: 500 });
   }
-}
+});

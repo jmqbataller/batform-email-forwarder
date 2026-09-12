@@ -1,140 +1,109 @@
 # BatMail
 
-BatMail is a private email alias and forwarding service for `batforum.online`.
-It creates random addresses at `mail.batforum.online`, forwards messages to a
-verified Supabase account email, and creates a stable random reply address for
-every alias/sender pair. Replies are relayed to the original sender without
-placing the user's real inbox address in the outgoing email headers.
+BatMail is a private email-alias service for `batforum.online`. It generates
+random addresses at `mail.batforum.online`, forwards their messages to the
+owner's verified inbox, and relays replies without exposing that inbox address
+to the original sender.
 
 ## Architecture
 
-- **Next.js on Vercel** — website, authenticated dashboard, server actions, and inbound webhook
-- **Supabase** — Auth, Postgres, Row Level Security, aliases, reply mappings, and delivery activity
-- **Resend** — inbound MX handling, webhook delivery, message retrieval, DKIM signing, and outgoing relay
-- **Spaceship** — registrar and DNS manager for `batforum.online`
+- **Next.js on Vercel** — public site, authentication, and alias dashboard
+- **Supabase** — Auth, Postgres, Row Level Security, Vault, and the inbound Edge Function
+- **Resend** — inbound MX handling, signed webhooks, message retrieval, and delivery
+- **Spaceship** — DNS for `batforum.online`
 
-Incoming mail uses a subdomain so the root domain remains available for the
-website and any future mailbox provider.
+The email-processing path is independent of Vercel:
 
 ```text
-Website/app -> random@mail.batforum.online -> Resend Inbound
-                                               |
-                                               v
-                                         Vercel webhook
-                                               |
-                                   Supabase alias lookup
-                                               |
-                                               v
-                                           Gmail inbox
+sender -> random@mail.batforum.online -> Resend Inbound
+                                          |
+                                          v
+                                  Supabase Edge Function
+                                          |
+                               alias lookup + reply token
+                                          |
+                                          v
+                                      owner inbox
 
-Gmail reply -> reverse-token@mail.batforum.online -> webhook -> original sender
+owner reply -> reply-token@mail.batforum.online -> Edge Function -> sender
 ```
 
-## Local setup
+## Local development
 
-1. Install dependencies:
+1. Install dependencies with `npm install`.
+2. Copy `.env.example` to `.env.local` and set the public Supabase values.
+3. Apply the files in `supabase/migrations` in order to a Supabase project.
+4. Deploy `supabase/functions/resend-inbound/index.ts` as an Edge Function with
+   JWT verification disabled. The function verifies Resend's Svix signature
+   itself.
+5. Start the app with `npm run dev`.
 
-   ```bash
-   npm install
-   ```
-
-2. Copy `.env.example` to `.env.local` and add the credentials from Supabase and Resend.
-
-3. In Supabase SQL Editor, run:
-
-   ```text
-   supabase/migrations/001_initial_schema.sql
-   ```
-
-4. Create the first user in Supabase under **Authentication → Users**. Keep
-   `NEXT_PUBLIC_ALLOW_SIGNUPS=false` for a private service.
-
-5. Start the app:
-
-   ```bash
-   npm run dev
-   ```
-
-## Production setup
+## Production configuration
 
 ### Supabase
 
-1. Create a project and run the migration.
-2. Copy the project URL, publishable key, and secret key to Vercel environment variables.
-3. Under **Authentication → URL Configuration**, set:
-   - Site URL: `https://aliases.batforum.online`
-   - Redirect URL: `https://aliases.batforum.online/auth/callback`
-4. For the initial private account, set `NEXT_PUBLIC_ALLOW_SIGNUPS=true` and
-   `SIGNUP_ALLOWED_EMAIL` to the owner's exact inbox. This allows only that
-   address to register. Set `NEXT_PUBLIC_ALLOW_SIGNUPS=false` after activation.
+The deployed database contains a private account allowlist. Add the owner there;
+do not put the address in source code:
 
-The secret key is used only by the server webhook. The browser and dashboard
-use the publishable key with Row Level Security.
+```sql
+insert into private.allowed_accounts (email)
+values ('owner@example.com')
+on conflict do nothing;
+```
+
+Store the Resend credentials in Supabase Vault using these names:
+
+- `batmail_resend_api_key`
+- `batmail_resend_webhook_secret`
+
+The Edge Function reads them through a service-role-only database function.
+Its public URL is:
+
+```text
+https://PROJECT_REF.supabase.co/functions/v1/resend-inbound
+```
+
+In **Authentication → URL Configuration**, set the Site URL to the production
+web address and allow `/auth/callback` as a redirect URL.
 
 ### Vercel
 
-1. Import the GitHub repository as a Next.js project.
-2. Add every variable from `.env.example`.
-3. Add `aliases.batforum.online` in the project Domains page. The root domain remains available for the existing BATFORM website.
-4. Redeploy after all variables are saved.
+Import this repository as a Next.js project. The production-safe public values
+are in `.env.production`; no Supabase service key or Resend secret is required
+by Vercel. Add `aliases.batforum.online` to the project, then point the
+`aliases` DNS host to the value Vercel provides.
 
-### Resend
+### Resend and Spaceship DNS
 
-1. Add `mail.batforum.online` as a domain.
-2. Add the DKIM/SPF records shown by Resend in Spaceship.
-3. Enable **Receiving** and copy the exact MX record shown by Resend.
-4. Add a webhook for:
+Add `mail.batforum.online` in Resend, enable receiving, and subscribe a webhook
+to `email.received` at the Supabase Edge Function URL. In Spaceship, add the
+exact DKIM, sending SPF, return-path, and receiving MX records issued by Resend.
+Do not reuse the root domain's MX records.
 
-   ```text
-   https://aliases.batforum.online/api/webhooks/resend
-   ```
+## Verification
 
-5. Select the `email.received` event and copy its signing secret to
-   `RESEND_WEBHOOK_SECRET` in Vercel.
-6. Use a full-access Resend API key because the webhook retrieves inbound bodies
-   and attachments and sends forwarded messages.
-
-### Spaceship DNS
-
-Use the exact values shown in the Vercel and Resend dashboards. The expected
-record layout is:
-
-| Host | Type | Purpose |
-| --- | --- | --- |
-| `aliases` | CNAME | Vercel BatMail website |
-| `mail` | MX | Resend inbound receiving |
-| Resend-provided host | TXT | SPF authorization |
-| Resend-provided DKIM host | TXT | DKIM signing |
-| `_dmarc.mail` | TXT | DMARC policy and reports |
-
-Do not guess the Vercel or Resend record values; copy the values shown for this
-project. Start DMARC in monitoring mode, then tighten the policy after delivery
-has been tested.
-
-## Verification checklist
-
-1. Sign in and create an alias.
-2. Send a message from another account to the new alias.
-3. Confirm Gmail displays a random `@mail.batforum.online` sender and the message body/attachments arrive.
-4. Reply from the exact destination inbox and confirm the original sender receives it from the public alias.
+1. Register the allowlisted owner, sign in, and create an alias.
+2. Send a message from a different account to that alias.
+3. Confirm the protected inbox sees a random `@mail.batforum.online` sender and
+   receives the original body and attachments.
+4. Reply from the exact protected inbox and confirm the original sender receives
+   it from the public alias.
 5. Pause the alias and confirm new messages are no longer forwarded.
-6. In Gmail, use **Show original** and confirm SPF, DKIM, and DMARC pass for the BatMail domain.
+6. In Gmail's **Show original**, confirm SPF, DKIM, and DMARC pass.
 
-## Security choices
+## Security properties
 
-- Webhook signatures are verified against the raw request body.
-- Reply tokens use 20 characters and are scoped to one public alias and sender.
-- A reverse alias accepts replies only from the alias owner's verified destination.
-- Public aliases are 10 random characters and cannot be chosen by unauthenticated callers.
-- The secret Supabase key and Resend key never enter the browser bundle.
-- Every exposed user table has Row Level Security.
-- Provider email IDs prevent webhook retries from forwarding a message twice.
-- Signups are invite-only by default. When temporarily enabled, a server-only
-  email allowlist restricts registration to the intended owner.
+- The browser receives only Supabase's publishable key; RLS protects user data.
+- Only the allowlisted account can create or change aliases.
+- Resend secrets are encrypted in Supabase Vault and readable only by the service role.
+- Webhook signatures are checked against the unmodified request body.
+- Stable 20-character reply tokens are scoped to one alias/sender pair.
+- Reply relay accepts mail only from the alias owner's exact destination address.
+- Provider message IDs make webhook retries idempotent.
+- Secrets and the private destination address are not committed to this repository.
 
-## Operational limitation
+## Limitation
 
-The forwarded email keeps the sender's original HTML and text, so a website name,
-logo, links, or footer in the message body can still identify the source. BatMail
-masks the visible sender address and the user's real mailbox; it does not rewrite
-the content of third-party messages.
+BatMail masks email addresses and headers; it does not rewrite third-party message
+content. A sender name, logo, link, tracking element, or footer inside the email
+body can still identify the website that sent the message.
