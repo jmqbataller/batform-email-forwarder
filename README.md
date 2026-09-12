@@ -64,7 +64,9 @@ Gmail reply -> reverse-token@mail.batforum.online -> webhook -> original sender
 3. Under **Authentication → URL Configuration**, set:
    - Site URL: `https://aliases.batforum.online`
    - Redirect URL: `https://aliases.batforum.online/auth/callback`
-4. Disable public signups while the service is private.
+4. For the initial private account, set `NEXT_PUBLIC_ALLOW_SIGNUPS=true` and
+   `SIGNUP_ALLOWED_EMAIL` to the owner's exact inbox. This allows only that
+   address to register. Set `NEXT_PUBLIC_ALLOW_SIGNUPS=false` after activation.
 
 The secret key is used only by the server webhook. The browser and dashboard
 use the publishable key with Row Level Security.
@@ -127,7 +129,8 @@ has been tested.
 - The secret Supabase key and Resend key never enter the browser bundle.
 - Every exposed user table has Row Level Security.
 - Provider email IDs prevent webhook retries from forwarding a message twice.
-- Signups are invite-only by default to prevent the deployment becoming an open relay.
+- Signups are invite-only by default. When temporarily enabled, a server-only
+  email allowlist restricts registration to the intended owner.
 
 ## Operational limitation
 
