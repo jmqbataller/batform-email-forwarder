@@ -1,4 +1,4 @@
-import { EyeOffIcon, KeyIcon, ShieldIcon } from "@/components/icons";
+import { ClockIcon, EyeOffIcon, KeyIcon, ShieldIcon } from "@/components/icons";
 import { forwardingDomain } from "@/lib/config";
 
 export const metadata = { title: "Security" };
@@ -7,12 +7,13 @@ const protections = [
   { icon: ShieldIcon, title: "Your real address stays private", text: "Websites only receive your random BatMail alias, never your destination inbox." },
   { icon: EyeOffIcon, title: "Private forwarding", text: `Mail sent to ${forwardingDomain} is routed to your verified account without revealing the forwarding website in the visible sender name.` },
   { icon: KeyIcon, title: "Account-scoped controls", text: "Only your signed-in account can view, pause, or delete its aliases and activity." },
+  { icon: ClockIcon, title: "Automatic data retention", text: "Stored email messages and activity records are permanently deleted after 30 days." },
 ];
 
 export default function SecurityPage() {
   return (
     <div className="dashboard">
-      <div className="page-head"><div><h1>Security</h1><p>How BatMail protects your inbox and alias controls.</p></div></div>
+      <div className="page-head"><div><span className="page-kicker">Privacy controls</span><h1>Security</h1><p>A clear view of how BatMail protects your inbox, identity, and stored messages.</p></div></div>
       <section className="security-grid" aria-label="Security protections">
         {protections.map(({ icon: Icon, title, text }) => (
           <article className="security-card" key={title}><span className="stat-icon"><Icon /></span><h2>{title}</h2><p>{text}</p></article>

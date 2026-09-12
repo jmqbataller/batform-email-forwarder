@@ -53,7 +53,7 @@ export function AliasList({ aliases, searchable = false }: { aliases: AliasRow[]
         </div>
       ) : null}
       {filteredAliases.length ? (
-        <div className="alias-list" style={{ opacity: isUpdating ? 0.65 : 1 }}>
+        <><div className="list-columns alias-columns" aria-hidden="true"><span>Private alias</span><span>Destination</span><span>Status & actions</span></div><div className="alias-list" style={{ opacity: isUpdating ? 0.65 : 1 }}>
           {filteredAliases.map((alias) => {
             const address = `${alias.local_part}@${forwardingDomain}`;
 
@@ -72,7 +72,7 @@ export function AliasList({ aliases, searchable = false }: { aliases: AliasRow[]
               </article>
             );
           })}
-        </div>
+        </div></>
       ) : (
         <div className="empty-state filtered-empty"><div><span className="empty-state-icon"><SearchIcon /></span><h3>No matching label</h3><p>Try another label or search using the alias address.</p></div></div>
       )}

@@ -17,7 +17,7 @@ export default async function DashboardPage() {
   return (
     <div className="dashboard">
       <div className="page-head">
-        <div><h1>Your aliases</h1><p>Create one private address for every website or account.</p></div>
+        <div><span className="page-kicker">Overview</span><h1>Your privacy dashboard</h1><p>Create and manage a separate private address for every website or account.</p></div>
         <CreateAliasForm />
       </div>
 
@@ -28,7 +28,7 @@ export default async function DashboardPage() {
       </div>
 
       <section className="panel" aria-labelledby="aliases-heading">
-        <div className="panel-head"><h2 id="aliases-heading">Recent aliases</h2><span>{forwardingDomain}</span></div>
+        <div className="panel-head"><div><h2 id="aliases-heading">Recent aliases</h2><p>Your newest protected email identities</p></div><span>{forwardingDomain}</span></div>
         <AliasList aliases={aliases.slice(0, 10)} />
       </section>
     </div>

@@ -13,12 +13,14 @@ function IconBase({ children, ...props }: Props) {
 export const ArrowRightIcon = (p: Props) => <IconBase {...p}><path d="M5 12h14M13 6l6 6-6 6" /></IconBase>;
 export const ArrowLeftIcon = (p: Props) => <IconBase {...p}><path d="M19 12H5M11 18l-6-6 6-6" /></IconBase>;
 export const CheckIcon = (p: Props) => <IconBase {...p}><path d="m5 12 4 4L19 6" /></IconBase>;
+export const ClockIcon = (p: Props) => <IconBase {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></IconBase>;
 export const CopyIcon = (p: Props) => <IconBase {...p}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3" /></IconBase>;
 export const EyeOffIcon = (p: Props) => <IconBase {...p}><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4.4 10 8a13.4 13.4 0 0 1-2 4M6.2 6.2C4.1 7.6 2.7 9.8 2 12c1 3.6 5 8 10 8 1.5 0 2.9-.4 4.1-1" /></IconBase>;
 export const InboxIcon = (p: Props) => <IconBase {...p}><path d="M4 4h16v12a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V4Z" /><path d="M4 13h4l2 3h4l2-3h4" /></IconBase>;
 export const GridIcon = (p: Props) => <IconBase {...p}><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></IconBase>;
 export const KeyIcon = (p: Props) => <IconBase {...p}><circle cx="8" cy="15" r="4" /><path d="m11 12 8-8M16 7l2 2M14 9l2 2" /></IconBase>;
 export const LockIcon = (p: Props) => <IconBase {...p}><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></IconBase>;
+export const LogOutIcon = (p: Props) => <IconBase {...p}><path d="M10 17l5-5-5-5M15 12H3" /><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" /></IconBase>;
 export const MailIcon = (p: Props) => <IconBase {...p}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></IconBase>;
 export const PlusIcon = (p: Props) => <IconBase {...p}><path d="M12 5v14M5 12h14" /></IconBase>;
 export const PencilIcon = (p: Props) => <IconBase {...p}><path d="m4 20 4.2-1 10.7-10.7a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" /><path d="m14.5 6.7 3 3" /></IconBase>;

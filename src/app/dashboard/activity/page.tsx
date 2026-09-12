@@ -17,20 +17,20 @@ export default async function ActivityPage() {
 
   return (
     <div className="dashboard">
-      <div className="page-head"><div><h1>Activity</h1><p>See the latest messages processed by your private aliases.</p></div></div>
+      <div className="page-head"><div><span className="page-kicker">Delivery log</span><h1>Activity</h1><p>Track the latest messages processed by your private aliases.</p></div></div>
       <section className="panel" aria-labelledby="activity-heading">
-        <div className="panel-head"><h2 id="activity-heading">Recent email activity</h2><span>Latest 100 events</span></div>
+        <div className="panel-head"><div><h2 id="activity-heading">Recent email activity</h2><p>Delivery status across all private addresses</p></div><span>Latest 100 events</span></div>
         {events.length ? (
-          <div className="activity-list">
-            {events.map((event) => (
-              <article className="activity-row" key={event.id}>
-                <span className="alias-glyph"><MailIcon /></span>
-                <div className="activity-copy"><strong>{event.subject || "No subject"}</strong><span>{event.masked_sender || "Private sender"}</span></div>
-                <span className={`event-status ${event.status}`}>{event.status}</span>
-                <time dateTime={event.created_at}>{activityDateFormatter.format(new Date(event.created_at))} PHT</time>
-              </article>
-            ))}
-          </div>
+          <><div className="list-columns activity-columns" aria-hidden="true"><span>Message</span><span>Status</span><span>Processed</span></div><div className="activity-list">
+              {events.map((event) => (
+                <article className="activity-row" key={event.id}>
+                  <span className="alias-glyph"><MailIcon /></span>
+                  <div className="activity-copy"><strong>{event.subject || "No subject"}</strong><span>{event.masked_sender || "Private sender"}</span></div>
+                  <span className={`event-status ${event.status}`}>{event.status}</span>
+                  <time dateTime={event.created_at}>{activityDateFormatter.format(new Date(event.created_at))} PHT</time>
+                </article>
+              ))}
+            </div></>
         ) : (
           <div className="empty-state"><div><span className="empty-state-icon"><MailIcon /></span><h3>No email activity yet</h3><p>When a message reaches one of your aliases, its delivery status will appear here.</p></div></div>
         )}

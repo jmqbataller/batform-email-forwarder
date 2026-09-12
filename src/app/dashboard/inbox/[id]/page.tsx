@@ -35,7 +35,7 @@ export default async function InboxMessagePage({ params }: { params: Promise<{ i
       <article className="message-card">
         <header className="message-head">
           <span className="alias-glyph"><InboxIcon /></span>
-          <div><span className="message-label">{label}</span><h1>{message.subject || "No subject"}</h1></div>
+          <div><span className="message-label">{label}</span><h1>{message.subject || "No subject"}</h1><p>Received through {aliasAddress}</p></div>
         </header>
         <dl className="message-meta">
           <div><dt>From</dt><dd>{message.original_from || "Unknown sender"}</dd></div>

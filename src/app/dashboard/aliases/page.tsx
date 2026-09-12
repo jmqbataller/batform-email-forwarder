@@ -14,11 +14,11 @@ export default async function AliasesPage() {
   return (
     <div className="dashboard">
       <div className="page-head">
-        <div><h1>Email aliases</h1><p>Manage, pause, copy, or remove every private address.</p></div>
+        <div><span className="page-kicker">Identity management</span><h1>Email aliases</h1><p>Manage, label, pause, and copy every private address from one place.</p></div>
         <CreateAliasForm />
       </div>
       <section className="panel" aria-labelledby="all-aliases-heading">
-        <div className="panel-head"><h2 id="all-aliases-heading">All aliases</h2><span>{aliases.length} on {forwardingDomain}</span></div>
+        <div className="panel-head"><div><h2 id="all-aliases-heading">All aliases</h2><p>Search by label, address, or destination</p></div><span>{aliases.length} on {forwardingDomain}</span></div>
         <AliasList aliases={aliases} searchable />
       </section>
     </div>

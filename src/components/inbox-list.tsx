@@ -54,7 +54,7 @@ export function InboxList({ messages }: { messages: InboxMessageRow[] }) {
         <span aria-live="polite">{filteredMessages.length} {filteredMessages.length === 1 ? "message" : "messages"}</span>
       </div>
       {filteredMessages.length ? (
-        <div className="inbox-list" style={{ opacity: isUpdating ? 0.65 : 1 }}>
+        <><div className="list-columns inbox-columns" aria-hidden="true"><span>Message</span><span>Alias label</span><span>Received</span><span /></div><div className="inbox-list" style={{ opacity: isUpdating ? 0.65 : 1 }}>
           {filteredMessages.map((message) => {
             const label = message.aliases.label || "Unlabeled";
             const aliasAddress = `${message.aliases.local_part}@${forwardingDomain}`;
@@ -80,7 +80,7 @@ export function InboxList({ messages }: { messages: InboxMessageRow[] }) {
               </Link>
             );
           })}
-        </div>
+        </div></>
       ) : (
         <div className="empty-state filtered-empty"><div><span className="empty-state-icon"><SearchIcon /></span><h3>No matching messages</h3><p>Try a different label, sender, alias address, or subject.</p></div></div>
       )}

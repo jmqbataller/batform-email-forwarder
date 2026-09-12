@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardNav } from "@/components/dashboard-nav";
+import { LogOutIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "./actions";
@@ -15,15 +16,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <Link href="/dashboard"><Logo /></Link>
+        <Link className="sidebar-brand" href="/dashboard"><Logo /></Link>
+        <span className="sidebar-label">Workspace</span>
         <DashboardNav />
         <div className="sidebar-bottom">
           <div className="user-chip"><span className="avatar">{initials}</span><div><strong>My account</strong><small>{user.email}</small></div></div>
-          <form action={logout}><button className="logout-button">Sign out</button></form>
+          <form action={logout}><button className="logout-button"><LogOutIcon /> Sign out</button></form>
         </div>
       </aside>
       <section className="app-main">
-        <header className="topbar"><span className="topbar-title">Alias dashboard</span><span className="system-status"><i /> Forwarding system ready</span></header>
+        <header className="topbar">
+          <div className="topbar-copy"><span>Private email workspace</span><strong>BatMail Console</strong></div>
+          <span className="system-status"><i /> All systems operational</span>
+        </header>
         {children}
       </section>
     </main>
