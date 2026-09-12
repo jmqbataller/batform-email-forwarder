@@ -4,7 +4,6 @@ const MAX_FORWARD_SIZE = 5 * 1024 * 1024;
 const MAX_STORED_TEXT = 500_000;
 
 type Env = {
-  EMAIL: SendEmail;
   BATMAIL_WORKER_SECRET: string;
   FORWARDING_DOMAIN: string;
   SUPABASE_EDGE_URL: string;
@@ -17,6 +16,7 @@ type RoutePlan =
       action: "forward";
       destination: string;
       eventId: string;
+      label: string | null;
       protectedSender: string;
     }
   | {
@@ -47,6 +47,11 @@ export function sanitizeError(error: unknown) {
   return (error instanceof Error ? error.message : "Unknown processing error")
     .replace(/[\r\n]+/g, " ")
     .slice(0, 500);
+}
+
+export function toHeaderValue(value: string | null | undefined, fallback: string) {
+  const normalized = (value || "").replace(/[\r\n]+/g, " ").trim();
+  return normalized.slice(0, 200) || fallback;
 }
 
 async function sha256Hex(value: ArrayBuffer) {
@@ -152,16 +157,11 @@ export default {
       }
 
       direction = "inbound";
-      await env.EMAIL.send({
-        to: plan.destination,
-        from: plan.protectedSender,
-        replyTo: plan.protectedSender,
-        subject: subject || "(no subject)",
-        ...(parsed.html
-          ? { html: parsed.html, text: parsed.text || undefined }
-          : { text: parsed.text || "" }),
-        attachments,
-      });
+      const forwardHeaders = new Headers();
+      forwardHeaders.set("X-BatMail-Alias", normalizeAddress(message.to));
+      forwardHeaders.set("X-BatMail-Label", toHeaderValue(plan.label, "Unlabeled"));
+      forwardHeaders.set("X-BatMail-Reply-Address", plan.protectedSender);
+      await message.forward(plan.destination, forwardHeaders);
 
       await callBackend(env, {
         action: "complete",
