@@ -6,15 +6,25 @@ import { z } from "zod";
 import { randomToken } from "@/lib/random";
 import { createClient } from "@/lib/supabase/server";
 
+export type AliasActionState = {
+  status: "idle" | "success" | "error";
+  message: string;
+};
+
+function refreshAliasViews() {
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/aliases");
+}
+
 export async function logout() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
 }
 
-export async function createAlias(formData: FormData) {
+export async function createAlias(_state: AliasActionState, formData: FormData): Promise<AliasActionState> {
   const labelResult = z.string().trim().max(60).safeParse(formData.get("label") || "");
-  if (!labelResult.success) return;
+  if (!labelResult.success) return { status: "error", message: "The label must be 60 characters or fewer." };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) redirect("/login");
@@ -26,10 +36,14 @@ export async function createAlias(formData: FormData) {
       destination: user.email.toLowerCase(),
       label: labelResult.data || null,
     });
-    if (!error) break;
-    if (error.code !== "23505" || attempt === 3) throw error;
+    if (!error) {
+      refreshAliasViews();
+      return { status: "success", message: "Alias created and ready to receive mail." };
+    }
+    if (error.code !== "23505" || attempt === 3) return { status: "error", message: "Could not create an alias. Please try again." };
   }
-  revalidatePath("/dashboard");
+
+  return { status: "error", message: "Could not create an alias. Please try again." };
 }
 
 export async function toggleAlias(formData: FormData) {
@@ -37,16 +51,20 @@ export async function toggleAlias(formData: FormData) {
   const enabled = z.enum(["true", "false"]).safeParse(formData.get("enabled"));
   if (!id.success || !enabled.success) return;
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
   const { error } = await supabase.from("aliases").update({ enabled: enabled.data !== "true" }).eq("id", id.data);
   if (error) throw error;
-  revalidatePath("/dashboard");
+  refreshAliasViews();
 }
 
 export async function deleteAlias(formData: FormData) {
   const id = z.uuid().safeParse(formData.get("id"));
   if (!id.success) return;
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
   const { error } = await supabase.from("aliases").delete().eq("id", id.data);
   if (error) throw error;
-  revalidatePath("/dashboard");
+  refreshAliasViews();
 }

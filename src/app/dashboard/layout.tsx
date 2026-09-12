@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { InboxIcon, KeyIcon, MailIcon, ShieldIcon } from "@/components/icons";
+import { DashboardNav } from "@/components/dashboard-nav";
 import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "./actions";
@@ -16,12 +16,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <main className="app-shell">
       <aside className="sidebar">
         <Link href="/dashboard"><Logo /></Link>
-        <nav className="sidebar-nav">
-          <Link className="active" href="/dashboard"><InboxIcon /><span>Overview</span></Link>
-          <Link href="/dashboard"><MailIcon /><span>Email aliases</span></Link>
-          <Link href="/dashboard"><ShieldIcon /><span>Activity</span></Link>
-          <Link href="/dashboard"><KeyIcon /><span>Security</span></Link>
-        </nav>
+        <DashboardNav />
         <div className="sidebar-bottom">
           <div className="user-chip"><span className="avatar">{initials}</span><div><strong>My account</strong><small>{user.email}</small></div></div>
           <form action={logout}><button className="logout-button">Sign out</button></form>
