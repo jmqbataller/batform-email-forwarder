@@ -14,10 +14,7 @@ type RoutePlan =
   | { action: "reject"; reason: string }
   | {
       action: "forward";
-      destination: string;
       eventId: string;
-      label: string | null;
-      protectedSender: string;
     }
   | {
       action: "reply";
@@ -47,11 +44,6 @@ export function sanitizeError(error: unknown) {
   return (error instanceof Error ? error.message : "Unknown processing error")
     .replace(/[\r\n]+/g, " ")
     .slice(0, 500);
-}
-
-export function toHeaderValue(value: string | null | undefined, fallback: string) {
-  const normalized = (value || "").replace(/[\r\n]+/g, " ").trim();
-  return normalized.slice(0, 200) || fallback;
 }
 
 async function sha256Hex(value: ArrayBuffer) {
@@ -90,6 +82,22 @@ function mapAttachments(
     }
     return { ...shared, disposition: "attachment" };
   });
+}
+
+function serializeAttachments(attachments: EmailAttachment[]) {
+  return attachments.map((attachment) => ({
+    ...attachment,
+    content: attachment.content instanceof ArrayBuffer
+      ? arrayBufferToBase64(attachment.content)
+      : ArrayBuffer.isView(attachment.content)
+        ? arrayBufferToBase64(
+            attachment.content.buffer.slice(
+              attachment.content.byteOffset,
+              attachment.content.byteOffset + attachment.content.byteLength,
+            ) as ArrayBuffer,
+          )
+        : attachment.content,
+  }));
 }
 
 export default {
@@ -139,34 +147,19 @@ export default {
           subject,
           text: parsed.text || "",
           html: parsed.html || null,
-          attachments: attachments.map((attachment) => ({
-            ...attachment,
-            content: attachment.content instanceof ArrayBuffer
-              ? arrayBufferToBase64(attachment.content)
-              : ArrayBuffer.isView(attachment.content)
-                ? arrayBufferToBase64(
-                    attachment.content.buffer.slice(
-                      attachment.content.byteOffset,
-                      attachment.content.byteOffset + attachment.content.byteLength,
-                    ) as ArrayBuffer,
-                  )
-                : attachment.content,
-          })),
+          attachments: serializeAttachments(attachments),
         });
         return;
       }
 
       direction = "inbound";
-      const forwardHeaders = new Headers();
-      forwardHeaders.set("X-BatMail-Alias", normalizeAddress(message.to));
-      forwardHeaders.set("X-BatMail-Label", toHeaderValue(plan.label, "Unlabeled"));
-      forwardHeaders.set("X-BatMail-Reply-Address", plan.protectedSender);
-      await message.forward(plan.destination, forwardHeaders);
-
       await callBackend(env, {
-        action: "complete",
+        action: "relay-inbound",
         event_id: plan.eventId,
-        status: "forwarded",
+        subject,
+        text: parsed.text || "",
+        html: parsed.html || null,
+        attachments: serializeAttachments(attachments),
       });
     } catch (error) {
       const detail = sanitizeError(error);
