@@ -8,24 +8,28 @@ to the original sender.
 ## Architecture
 
 - **Next.js on Vercel** — public site, authentication, and alias dashboard
-- **Supabase** — Auth, Postgres, Row Level Security, Vault, and the inbound Edge Function
-- **Resend** — inbound MX handling, signed webhooks, message retrieval, and delivery
-- **Spaceship** — DNS for `batform.online`
+- **Supabase** — Auth, Postgres, Row Level Security, Vault, and the routing API
+- **Cloudflare** — authoritative DNS, unlimited inbound Email Routing, and forwarding to the verified owner inbox
+- **Resend** — low-volume masked reply delivery only
+- **Spaceship** — domain registrar for `batform.online`
 
 The email-processing path is independent of Vercel:
 
 ```text
-sender -> random@mail.batform.online -> Resend Inbound
+sender -> random@mail.batform.online -> Cloudflare Email Worker
                                           |
                                           v
-                                  Supabase Edge Function
+                                  Supabase routing API
                                           |
                                alias lookup + reply token
                                           |
                                           v
                                       owner inbox
 
-owner reply -> reply-token@mail.batform.online -> Edge Function -> sender
+owner reply -> reply-token@mail.batform.online -> Cloudflare Worker
+                                                   |
+                                                   v
+                                         Supabase + Resend -> sender
 ```
 
 ## Local development
@@ -33,10 +37,12 @@ owner reply -> reply-token@mail.batform.online -> Edge Function -> sender
 1. Install dependencies with `npm install`.
 2. Copy `.env.example` to `.env.local` and set the public Supabase values.
 3. Apply the files in `supabase/migrations` in order to a Supabase project.
-4. Deploy `supabase/functions/resend-inbound/index.ts` as an Edge Function with
-   JWT verification disabled. The function verifies Resend's Svix signature
-   itself.
-5. Start the app with `npm run dev`.
+4. Deploy `supabase/functions/cloudflare-inbound/index.ts` as an Edge Function
+   with JWT verification disabled. It authenticates every Worker request with
+   the shared secret stored in Supabase Vault.
+5. Install and validate the Cloudflare Worker with `cd cloudflare && npm install
+   && npm run check && npm test`.
+6. Start the app with `npm run dev`.
 
 ## Production configuration
 
@@ -56,14 +62,22 @@ Store the Resend credentials in Supabase Vault using these names:
 - `batmail_resend_api_key`
 - `batmail_resend_webhook_secret`
 
-The Edge Function reads them through a service-role-only database function.
-Its public URL is:
+Migration `007_cloudflare_worker_secret.sql` creates a random
+`batmail_cloudflare_worker_secret` in Vault. Set the same value as the
+Cloudflare Worker secret named `BATMAIL_WORKER_SECRET`.
+
+The Edge Functions read secrets through a service-role-only database function.
+The production Cloudflare routing API is:
 
 ```text
-https://PROJECT_REF.supabase.co/functions/v1/resend-inbound
+https://PROJECT_REF.supabase.co/functions/v1/cloudflare-inbound
 ```
 
-In **Authentication → URL Configuration**, set the Site URL to the production
+The legacy `resend-inbound` function can remain deployed as a rollback path
+during the DNS transition.
+
+Deploy `cloudflare-inbound` with JWT verification disabled. In
+**Authentication → URL Configuration**, set the Site URL to the production
 web address and allow `/auth/callback` as a redirect URL.
 
 ### Vercel
@@ -73,12 +87,23 @@ are in `.env.production`; no Supabase service key or Resend secret is required
 by Vercel. Add `aliases.batform.online` to the project, then point the
 `aliases` DNS host to the value Vercel provides.
 
-### Resend and Spaceship DNS
+### Cloudflare Email Routing
 
-Add `mail.batform.online` in Resend, enable receiving, and subscribe a webhook
-to `email.received` at the Supabase Edge Function URL. In Spaceship, add the
-exact DKIM, sending SPF, return-path, and receiving MX records issued by Resend.
-Do not reuse the root domain's MX records.
+1. Add `batform.online` to Cloudflare and replace the registrar nameservers with
+   the assigned Cloudflare nameservers. Preserve the existing `aliases` CNAME
+   for Vercel.
+2. Enable Email Routing for the `mail.batform.online` subdomain and let
+   Cloudflare create its MX, SPF, and DKIM records.
+3. Add and verify the owner's destination inbox in Cloudflare Email Routing.
+4. From `cloudflare/`, set `BATMAIL_WORKER_SECRET` with `wrangler secret put`,
+   then deploy with `npm run deploy`.
+5. Create a catch-all Email Routing rule for `mail.batform.online` whose action
+   is the `batmail-email-router` Worker.
+
+Keep the Resend API key in Supabase Vault. Resend no longer receives or forwards
+ordinary inbound mail; it is used only when the owner replies through a masked
+address. Do not remove the old Resend MX records until Cloudflare Email Routing
+is active and a live end-to-end test succeeds.
 
 ## Verification
 
@@ -95,8 +120,8 @@ Do not reuse the root domain's MX records.
 
 - The browser receives only Supabase's publishable key; RLS protects user data.
 - Only the allowlisted account can create or change aliases.
-- Resend secrets are encrypted in Supabase Vault and readable only by the service role.
-- Webhook signatures are checked against the unmodified request body.
+- Resend and Worker secrets are encrypted in Supabase Vault and readable only by the service role.
+- Cloudflare-to-Supabase requests require a constant-time checked 256-bit shared secret.
 - Stable 20-character reply tokens are scoped to one alias/sender pair.
 - Reply relay accepts mail only from the alias owner's exact destination address.
 - Provider message IDs make webhook retries idempotent.

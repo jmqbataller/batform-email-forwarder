@@ -1,0 +1,10 @@
+name = "batmail-email-router"
+main = "src/index.ts"
+compatibility_date = "2026-09-12"
+
+[vars]
+FORWARDING_DOMAIN = "mail.batform.online"
+SUPABASE_EDGE_URL = "https://djhgekzhjrzszdzrzwxp.supabase.co/functions/v1/cloudflare-inbound"
+
+[[send_email]]
+name = "EMAIL"
