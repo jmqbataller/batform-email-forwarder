@@ -8,6 +8,3 @@ SUPABASE_EDGE_URL = "https://djhgekzhjrzszdzrzwxp.supabase.co/functions/v1/cloud
 
 [secrets]
 required = [ "BATMAIL_WORKER_SECRET" ]
-
-[[send_email]]
-name = "EMAIL"
