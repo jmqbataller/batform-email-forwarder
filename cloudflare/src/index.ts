@@ -21,16 +21,7 @@ type RoutePlan =
       eventId: string;
     };
 
-type CloudflareFallback = {
-  accepted: false;
-  fallback: "cloudflare";
-  reason: "provider_quota";
-  destination: string;
-  label: string | null;
-  protectedSender: string;
-};
-
-type BackendResult = RoutePlan | { accepted: true } | CloudflareFallback;
+type BackendResult = RoutePlan | { accepted: true };
 
 export function normalizeAddress(value: string) {
   const match = value.match(/<([^>]+)>/);
@@ -53,24 +44,6 @@ export function sanitizeError(error: unknown) {
   return (error instanceof Error ? error.message : "Unknown processing error")
     .replace(/[\r\n]+/g, " ")
     .slice(0, 500);
-}
-
-export function isCloudflareFallback(result: BackendResult): result is CloudflareFallback {
-  return "accepted" in result && result.accepted === false && result.fallback === "cloudflare";
-}
-
-export function createFallbackHeaders(
-  originalRecipient: string,
-  fallback: CloudflareFallback,
-) {
-  const safeHeaderValue = (value: string) => value.replace(/[\r\n]+/g, " ").slice(0, 500);
-  const headers = new Headers({
-    "X-BatMail-Delivery": "provider-quota-fallback",
-    "X-BatMail-Original-Recipient": safeHeaderValue(originalRecipient),
-    "X-BatMail-Protected-Sender": safeHeaderValue(fallback.protectedSender),
-  });
-  if (fallback.label) headers.set("X-BatMail-Label", safeHeaderValue(fallback.label));
-  return headers;
 }
 
 async function sha256Hex(value: ArrayBuffer) {
@@ -180,7 +153,7 @@ export default {
       }
 
       direction = "inbound";
-      const relayResult = await callBackend(env, {
+      await callBackend(env, {
         action: "relay-inbound",
         event_id: plan.eventId,
         subject,
@@ -188,18 +161,6 @@ export default {
         html: parsed.html || null,
         attachments: serializeAttachments(attachments),
       });
-
-      if (isCloudflareFallback(relayResult)) {
-        await message.forward(
-          relayResult.destination,
-          createFallbackHeaders(normalizeAddress(message.to), relayResult),
-        );
-        await callBackend(env, {
-          action: "complete",
-          event_id: plan.eventId,
-          status: "forwarded",
-        });
-      }
     } catch (error) {
       const detail = sanitizeError(error);
       console.error("BatMail email processing failed", {

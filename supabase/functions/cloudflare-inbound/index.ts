@@ -401,14 +401,14 @@ async function relayInbound(
     );
     if (error) {
       if (isDailyQuotaError(error.message)) {
-        return json({
-          accepted: false,
-          fallback: "cloudflare",
-          reason: "provider_quota",
-          destination: aliasResult.data.destination,
-          label: aliasResult.data.label,
-          protectedSender: event.masked_sender,
-        });
+        const detail = "Masked Gmail delivery paused: Resend daily quota exhausted; message remains in BatMail.";
+        const paused = await admin
+          .from("email_events")
+          .update({ status: "failed", error: detail })
+          .eq("id", event.id)
+          .eq("status", "processing");
+        if (paused.error) throw paused.error;
+        return json({ accepted: true, stored: true, relayed: false, reason: "provider_quota" });
       }
       throw new Error(`Inbound delivery failed: ${error.message}`);
     }
