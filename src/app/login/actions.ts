@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { allowSignups, siteUrl } from "@/lib/config";
+import { allowSignups, signupAllowedEmail, siteUrl } from "@/lib/config";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState = { error?: string; message?: string };
@@ -26,12 +26,17 @@ export async function login(_: AuthState, formData: FormData): Promise<AuthState
 }
 
 export async function signup(_: AuthState, formData: FormData): Promise<AuthState> {
-  if (!allowSignups) return { error: "New accounts are currently invite-only." };
+  if (!allowSignups || !signupAllowedEmail) {
+    return { error: "New accounts are currently invite-only." };
+  }
   const parsed = credentialsSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+  if (parsed.data.email.toLowerCase() !== signupAllowedEmail) {
+    return { error: "This email address is not invited to BatMail." };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signUp({
