@@ -6,10 +6,10 @@ import { ArrowRightIcon, InboxIcon, SearchIcon } from "@/components/icons";
 import { forwardingDomain } from "@/lib/config";
 import type { InboxMessageRow } from "@/lib/types";
 
-const inboxDateFormatter = new Intl.DateTimeFormat("en", {
+const inboxDateFormatter = new Intl.DateTimeFormat("en-PH", {
   dateStyle: "medium",
   timeStyle: "short",
-  timeZone: "UTC",
+  timeZone: "Asia/Manila",
 });
 
 export function InboxList({ messages }: { messages: InboxMessageRow[] }) {
@@ -75,7 +75,7 @@ export function InboxList({ messages }: { messages: InboxMessageRow[] }) {
                   <strong>{label}</strong>
                   <small title={aliasAddress}>{aliasAddress}</small>
                 </span>
-                <time dateTime={message.created_at}>{inboxDateFormatter.format(new Date(message.created_at))} UTC</time>
+                <time dateTime={message.created_at}>{inboxDateFormatter.format(new Date(message.created_at))} PHT</time>
                 <ArrowRightIcon />
               </Link>
             );

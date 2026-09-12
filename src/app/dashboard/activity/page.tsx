@@ -4,10 +4,10 @@ import type { EmailEventRow } from "@/lib/types";
 
 export const metadata = { title: "Activity" };
 
-const activityDateFormatter = new Intl.DateTimeFormat("en", {
+const activityDateFormatter = new Intl.DateTimeFormat("en-PH", {
   dateStyle: "medium",
   timeStyle: "short",
-  timeZone: "UTC",
+  timeZone: "Asia/Manila",
 });
 
 export default async function ActivityPage() {
@@ -27,7 +27,7 @@ export default async function ActivityPage() {
                 <span className="alias-glyph"><MailIcon /></span>
                 <div className="activity-copy"><strong>{event.subject || "No subject"}</strong><span>{event.masked_sender || "Private sender"}</span></div>
                 <span className={`event-status ${event.status}`}>{event.status}</span>
-                <time dateTime={event.created_at}>{activityDateFormatter.format(new Date(event.created_at))} UTC</time>
+                <time dateTime={event.created_at}>{activityDateFormatter.format(new Date(event.created_at))} PHT</time>
               </article>
             ))}
           </div>

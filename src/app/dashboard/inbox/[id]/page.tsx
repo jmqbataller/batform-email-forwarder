@@ -7,10 +7,10 @@ import type { InboxMessageDetail } from "@/lib/types";
 
 export const metadata = { title: "Inbox message" };
 
-const messageDateFormatter = new Intl.DateTimeFormat("en", {
+const messageDateFormatter = new Intl.DateTimeFormat("en-PH", {
   dateStyle: "long",
   timeStyle: "short",
-  timeZone: "UTC",
+  timeZone: "Asia/Manila",
 });
 
 export default async function InboxMessagePage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,7 +40,7 @@ export default async function InboxMessagePage({ params }: { params: Promise<{ i
         <dl className="message-meta">
           <div><dt>From</dt><dd>{message.original_from || "Unknown sender"}</dd></div>
           <div><dt>Alias</dt><dd>{aliasAddress}</dd></div>
-          <div><dt>Received</dt><dd>{messageDateFormatter.format(new Date(message.created_at))} UTC</dd></div>
+          <div><dt>Received</dt><dd>{messageDateFormatter.format(new Date(message.created_at))} PHT</dd></div>
           <div><dt>Forwarding</dt><dd><span className={`event-status ${message.status}`}>{message.status}</span></dd></div>
         </dl>
         <section className="message-content" aria-labelledby="message-content-heading">
