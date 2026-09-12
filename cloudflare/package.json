@@ -1,12 +1,12 @@
 {
   "name": "batmail-email-router",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
     "test": "node --test src/index.test.ts",
-    "deploy": "wrangler deploy"
+    "deploy": "node scripts/deploy.mjs"
   },
   "dependencies": {
     "postal-mime": "^3.0.0"
