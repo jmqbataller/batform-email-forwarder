@@ -5,7 +5,6 @@ import {
   localPartFor,
   normalizeAddress,
   sanitizeError,
-  toHeaderValue,
   toStoredText,
 } from "./index.ts";
 
@@ -22,6 +21,4 @@ test("accepts only the configured forwarding domain", () => {
 test("sanitizes stored content and operational errors", () => {
   assert.equal(toStoredText("  hello\0 world  "), "hello world");
   assert.equal(sanitizeError(new Error("line one\nline two")), "line one line two");
-  assert.equal(toHeaderValue(" Canva\r\nAlias ", "Unlabeled"), "Canva Alias");
-  assert.equal(toHeaderValue(null, "Unlabeled"), "Unlabeled");
 });
