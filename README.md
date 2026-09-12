@@ -9,8 +9,8 @@ to the original sender.
 
 - **Next.js on Vercel** — public site, authentication, and alias dashboard
 - **Supabase** — Auth, Postgres, Row Level Security, Vault, and the routing API
-- **Cloudflare** — authoritative DNS, unlimited inbound Email Routing, and forwarding to the verified owner inbox
-- **Resend** — low-volume masked reply delivery only
+- **Cloudflare** — authoritative DNS and unlimited inbound Email Routing
+- **Resend** — low-volume masked delivery to the owner inbox and reply relay
 - **Spaceship** — domain registrar for `batform.online`
 
 The email-processing path is independent of Vercel:
@@ -24,7 +24,7 @@ sender -> random@mail.batform.online -> Cloudflare Email Worker
                                alias lookup + reply token
                                           |
                                           v
-                                      owner inbox
+                               Resend -> owner inbox
 
 owner reply -> reply-token@mail.batform.online -> Cloudflare Worker
                                                    |
@@ -98,12 +98,11 @@ by Vercel. Add `aliases.batform.online` to the project, then point the
 4. From `cloudflare/`, set `BATMAIL_WORKER_SECRET` with `wrangler secret put`,
    then deploy with `npm run deploy`.
 5. Create a catch-all Email Routing rule for `mail.batform.online` whose action
-   is the `batmail-email-router` Worker.
+   is the `batform-email-forwarder` Worker.
 
-Keep the Resend API key in Supabase Vault. Resend no longer receives or forwards
-ordinary inbound mail; it is used only when the owner replies through a masked
-address. Do not remove the old Resend MX records until Cloudflare Email Routing
-is active and a live end-to-end test succeeds.
+Keep the Resend API key in Supabase Vault. Cloudflare receives ordinary inbound
+mail, while Resend delivers the masked copy to the owner inbox and relays replies.
+Do not remove the Resend sending records; they authenticate the masked delivery.
 
 ## Verification
 
