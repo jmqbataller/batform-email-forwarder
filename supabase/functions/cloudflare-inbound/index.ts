@@ -50,6 +50,7 @@ type Alias = {
   user_id: string;
   local_part: string;
   destination: string;
+  label: string | null;
   enabled: boolean;
 };
 
@@ -194,7 +195,7 @@ async function prepareRoute(
   const sender = normalizeAddress(input.from);
   const reverseResult = await admin
     .from("reverse_aliases")
-    .select("id,token,sender_email,alias_id,aliases!inner(id,user_id,local_part,destination,enabled)")
+    .select("id,token,sender_email,alias_id,aliases!inner(id,user_id,local_part,destination,label,enabled)")
     .eq("token", localPart)
     .limit(1)
     .maybeSingle();
@@ -222,7 +223,7 @@ async function prepareRoute(
 
   const aliasResult = await admin
     .from("aliases")
-    .select("id,user_id,local_part,destination,enabled")
+    .select("id,user_id,local_part,destination,label,enabled")
     .eq("local_part", localPart)
     .eq("enabled", true)
     .limit(1)
@@ -256,6 +257,7 @@ async function prepareRoute(
     action: "forward",
     eventId,
     destination: alias.destination,
+    label: alias.label,
     protectedSender,
   });
 }
