@@ -14,6 +14,7 @@ export type AliasActionState = {
 function refreshAliasViews() {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/aliases");
+  revalidatePath("/dashboard/inbox");
 }
 
 export async function logout() {
@@ -56,6 +57,25 @@ export async function toggleAlias(formData: FormData) {
   const { error } = await supabase.from("aliases").update({ enabled: enabled.data !== "true" }).eq("id", id.data);
   if (error) throw error;
   refreshAliasViews();
+}
+
+export async function renameAlias(formData: FormData): Promise<AliasActionState> {
+  const id = z.uuid().safeParse(formData.get("id"));
+  const label = z.string().trim().min(1).max(60).safeParse(formData.get("label"));
+  if (!id.success || !label.success) return { status: "error", message: "Enter a label between 1 and 60 characters." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { error } = await supabase
+    .from("aliases")
+    .update({ label: label.data })
+    .eq("id", id.data)
+    .eq("user_id", user.id);
+  if (error) return { status: "error", message: "Could not update the label. Please try again." };
+
+  refreshAliasViews();
+  return { status: "success", message: "Label updated." };
 }
 
 export async function deleteAlias(formData: FormData) {

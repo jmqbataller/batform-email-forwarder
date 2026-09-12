@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { InboxIcon, KeyIcon, MailIcon, ShieldIcon } from "@/components/icons";
+import { GridIcon, InboxIcon, KeyIcon, MailIcon, ShieldIcon } from "@/components/icons";
 
 const navItems = [
-  { href: "/dashboard", label: "Overview", icon: InboxIcon },
+  { href: "/dashboard", label: "Overview", icon: GridIcon },
+  { href: "/dashboard/inbox", label: "Inbox", icon: InboxIcon },
   { href: "/dashboard/aliases", label: "Email aliases", icon: MailIcon },
   { href: "/dashboard/activity", label: "Activity", icon: ShieldIcon },
   { href: "/dashboard/security", label: "Security", icon: KeyIcon },

@@ -19,7 +19,7 @@ export default async function AliasesPage() {
       </div>
       <section className="panel" aria-labelledby="all-aliases-heading">
         <div className="panel-head"><h2 id="all-aliases-heading">All aliases</h2><span>{aliases.length} on {forwardingDomain}</span></div>
-        <AliasList aliases={aliases} />
+        <AliasList aliases={aliases} searchable />
       </section>
     </div>
   );

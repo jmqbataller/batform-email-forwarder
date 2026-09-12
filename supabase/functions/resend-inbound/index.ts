@@ -6,6 +6,7 @@ import { z } from "npm:zod@4.1.0";
 
 const forwardingDomain = "mail.batform.online";
 const alphabet = "23456789abcdefghjkmnpqrstuvwxyz";
+const maxStoredMessageLength = 500_000;
 
 const receivedEventSchema = z.object({
   type: z.literal("email.received"),
@@ -149,12 +150,58 @@ async function startEmailEvent(
   return retried.data.id as string;
 }
 
-async function loadReceivedMessage(apiKey: string, emailId: string) {
-  const [received, attachments] = await Promise.all([
-    resendGet<{ html?: string | null; text?: string | null }>(apiKey, `/emails/receiving/${encodeURIComponent(emailId)}`),
-    loadAttachments(apiKey, emailId),
-  ]);
-  return { received, attachments };
+async function loadReceivedContent(apiKey: string, emailId: string) {
+  return await resendGet<{ html?: string | null; text?: string | null }>(
+    apiKey,
+    `/emails/receiving/${encodeURIComponent(emailId)}`,
+  );
+}
+
+function decodeHtmlEntity(entity: string) {
+  const named: Record<string, string> = {
+    amp: "&", apos: "'", gt: ">", lt: "<", nbsp: " ", quot: '"',
+  };
+  const toCharacter = (value: number) => (
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= 0x10ffff &&
+    !(value >= 0xd800 && value <= 0xdfff)
+      ? String.fromCodePoint(value)
+      : `&${entity};`
+  );
+  if (entity.startsWith("#x")) {
+    return toCharacter(Number.parseInt(entity.slice(2), 16));
+  }
+  if (entity.startsWith("#")) {
+    return toCharacter(Number.parseInt(entity.slice(1), 10));
+  }
+  return named[entity.toLowerCase()] || `&${entity};`;
+}
+
+function htmlToPlainText(html: string) {
+  return html
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/(?:div|p|li|tr|h[1-6])\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (_match, entity: string) => decodeHtmlEntity(entity))
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function storedMessageText(received: { html?: string | null; text?: string | null }) {
+  const content = received.text?.trim() || (received.html ? htmlToPlainText(received.html) : "");
+  return content.replaceAll("\0", "").slice(0, maxStoredMessageLength);
+}
+
+async function storeMessageBody(admin: SupabaseClient, eventId: string, received: { html?: string | null; text?: string | null }) {
+  const { error } = await admin
+    .from("email_events")
+    .update({ text_body: storedMessageText(received) || null })
+    .eq("id", eventId);
+  if (error) throw error;
 }
 
 async function getOrCreateReverseAlias(
@@ -267,7 +314,12 @@ Deno.serve(async (request) => {
       if (!eventRecordId) return Response.json({ accepted: true, duplicate: true });
 
       stage = "message-content";
-      const { received, attachments } = await loadReceivedMessage(resendApiKey, event.email_id);
+      const received = await loadReceivedContent(resendApiKey, event.email_id);
+      stage = "message-storage";
+      const [, attachments] = await Promise.all([
+        storeMessageBody(admin, eventRecordId, received),
+        loadAttachments(resendApiKey, event.email_id),
+      ]);
 
       stage = "reply-delivery";
       const { error: sendError } = await resend.emails.send({
@@ -306,7 +358,12 @@ Deno.serve(async (request) => {
     if (!eventRecordId) return Response.json({ accepted: true, duplicate: true });
 
     stage = "message-content";
-    const { received, attachments } = await loadReceivedMessage(resendApiKey, event.email_id);
+    const received = await loadReceivedContent(resendApiKey, event.email_id);
+    stage = "message-storage";
+    const [, attachments] = await Promise.all([
+      storeMessageBody(admin, eventRecordId, received),
+      loadAttachments(resendApiKey, event.email_id),
+    ]);
 
     stage = "reply-address";
     const replyToken = await getOrCreateReverseAlias(admin, alias, sender.email);
