@@ -39,9 +39,19 @@ const relayReplySchema = z.object({
   attachments: z.array(attachmentSchema).max(32),
 });
 
+const relayInboundSchema = z.object({
+  action: z.literal("relay-inbound"),
+  event_id: z.uuid(),
+  subject: z.string().max(2_000).nullable(),
+  text: z.string().max(5_000_000),
+  html: z.string().max(5_000_000).nullable(),
+  attachments: z.array(attachmentSchema).max(32),
+});
+
 const requestSchema = z.discriminatedUnion("action", [
   prepareSchema,
   completeSchema,
+  relayInboundSchema,
   relayReplySchema,
 ]);
 
@@ -256,9 +266,6 @@ async function prepareRoute(
   return json({
     action: "forward",
     eventId,
-    destination: alias.destination,
-    label: alias.label,
-    protectedSender,
   });
 }
 
@@ -339,6 +346,82 @@ async function relayReply(
   }
 }
 
+async function relayInbound(
+  admin: SupabaseClient,
+  input: z.infer<typeof relayInboundSchema>,
+) {
+  const eventResult = await admin
+    .from("email_events")
+    .select("id,status,direction,alias_id,masked_sender")
+    .eq("id", input.event_id)
+    .maybeSingle();
+  if (eventResult.error) throw eventResult.error;
+  const event = eventResult.data;
+  if (!event || event.direction !== "inbound") {
+    return json({ error: "Inbound event not found" }, 404);
+  }
+  if (event.status === "forwarded") return json({ accepted: true });
+  if (event.status !== "processing" || !event.alias_id || !event.masked_sender) {
+    return json({ error: "Inbound event is not deliverable" }, 409);
+  }
+
+  const aliasResult = await admin
+    .from("aliases")
+    .select("id,destination,enabled")
+    .eq("id", event.alias_id)
+    .eq("enabled", true)
+    .maybeSingle();
+  if (aliasResult.error) throw aliasResult.error;
+  if (!aliasResult.data) return json({ error: "Alias is inactive" }, 409);
+
+  try {
+    const resendApiKey = await getSecret(admin, "batmail_resend_api_key");
+    const resend = new Resend(resendApiKey);
+    const { error } = await resend.emails.send(
+      {
+        from: event.masked_sender,
+        to: [aliasResult.data.destination],
+        replyTo: event.masked_sender,
+        subject: input.subject || "(no subject)",
+        ...(input.html
+          ? { html: input.html, text: input.text || undefined }
+          : { text: input.text }),
+        attachments: input.attachments.map((attachment) => ({
+          content: attachment.content,
+          filename: attachment.filename,
+          contentType: attachment.type,
+          ...(attachment.contentId ? { contentId: attachment.contentId } : {}),
+        })),
+      },
+      { idempotencyKey: `batmail-inbound/${event.id}` },
+    );
+    if (error) throw new Error(`Inbound delivery failed: ${error.message}`);
+
+    const updated = await admin
+      .from("email_events")
+      .update({ status: "forwarded", error: null })
+      .eq("id", event.id)
+      .eq("status", "processing");
+    if (updated.error) throw updated.error;
+
+    const counted = await admin.rpc("increment_alias_forwarded", {
+      target_alias_id: aliasResult.data.id,
+    });
+    if (counted.error) throw counted.error;
+    return json({ accepted: true });
+  } catch (error) {
+    const detail = error instanceof Error
+      ? error.message.slice(0, 500)
+      : "Inbound delivery failed";
+    await admin
+      .from("email_events")
+      .update({ status: "failed", error: detail })
+      .eq("id", event.id)
+      .eq("status", "processing");
+    throw error;
+  }
+}
+
 Deno.serve(async (request) => {
   try {
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
@@ -362,6 +445,8 @@ Deno.serve(async (request) => {
         return await prepareRoute(admin, parsed.data);
       case "complete":
         return await completeForward(admin, parsed.data);
+      case "relay-inbound":
+        return await relayInbound(admin, parsed.data);
       case "relay-reply":
         return await relayReply(admin, parsed.data);
     }
