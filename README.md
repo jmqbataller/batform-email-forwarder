@@ -104,6 +104,12 @@ Keep the Resend API key in Supabase Vault. Cloudflare receives ordinary inbound
 mail, while Resend delivers the masked copy to the owner inbox and relays replies.
 Do not remove the Resend sending records; they authenticate the masked delivery.
 
+Resend Free is limited to 100 emails per UTC day. If that provider quota is
+exhausted, BatMail falls back to Cloudflare Email Routing so time-sensitive mail
+still reaches the owner inbox. This fallback preserves the original sender
+(for example, Canva), because Cloudflare forwarding cannot rewrite the `From`
+header. `X-BatMail-*` headers identify the protected address and fallback path.
+
 ## Verification
 
 1. Register the allowlisted owner, sign in, and create an alias.

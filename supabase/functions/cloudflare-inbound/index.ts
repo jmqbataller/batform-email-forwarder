@@ -100,6 +100,10 @@ function maskedFrom(localPart: string) {
   return `${localPart}@${forwardingDomain}`;
 }
 
+function isDailyQuotaError(message: string) {
+  return message.toLowerCase().includes("daily email sending quota");
+}
+
 function secretsMatch(provided: string, expected: string) {
   const left = new TextEncoder().encode(provided);
   const right = new TextEncoder().encode(expected);
@@ -367,7 +371,7 @@ async function relayInbound(
 
   const aliasResult = await admin
     .from("aliases")
-    .select("id,destination,enabled")
+    .select("id,destination,label,enabled")
     .eq("id", event.alias_id)
     .eq("enabled", true)
     .maybeSingle();
@@ -395,7 +399,19 @@ async function relayInbound(
       },
       { idempotencyKey: `batmail-inbound/${event.id}` },
     );
-    if (error) throw new Error(`Inbound delivery failed: ${error.message}`);
+    if (error) {
+      if (isDailyQuotaError(error.message)) {
+        return json({
+          accepted: false,
+          fallback: "cloudflare",
+          reason: "provider_quota",
+          destination: aliasResult.data.destination,
+          label: aliasResult.data.label,
+          protectedSender: event.masked_sender,
+        });
+      }
+      throw new Error(`Inbound delivery failed: ${error.message}`);
+    }
 
     const updated = await admin
       .from("email_events")
