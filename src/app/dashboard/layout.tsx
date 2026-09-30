@@ -11,6 +11,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) redirect("/login");
+  const { data: isAdmin } = await supabase.rpc("is_subscription_admin");
   const initials = user.email.slice(0, 2).toUpperCase();
 
   return (
@@ -18,7 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <aside className="sidebar">
         <Link className="sidebar-brand" href="/dashboard"><Logo /></Link>
         <span className="sidebar-label">Workspace</span>
-        <DashboardNav />
+        <DashboardNav isAdmin={Boolean(isAdmin)} />
         <div className="sidebar-bottom">
           <div className="user-chip"><span className="avatar">{initials}</span><div><strong>My account</strong><small>{user.email}</small></div></div>
           <form action={logout}><button className="logout-button"><LogOutIcon /> Sign out</button></form>
