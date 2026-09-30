@@ -11,11 +11,36 @@ export type AliasActionState = {
   message: string;
 };
 
+const PAID_PLANS = new Set(["starter", "pro", "business"]);
+const EDIT_WINDOW_MS = 3 * 60 * 1000;
+
 function refreshAliasViews() {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/aliases");
   revalidatePath("/dashboard/inbox");
   revalidatePath("/dashboard/subscription");
+}
+
+async function getAliasMutationAccess(aliasId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const [{ data: alias }, { data: subscription }] = await Promise.all([
+    supabase.from("aliases").select("id,user_id,created_at").eq("id", aliasId).eq("user_id", user.id).maybeSingle(),
+    supabase.from("user_subscriptions").select("plan,status").eq("user_id", user.id).maybeSingle(),
+  ]);
+
+  const paid = Boolean(subscription && PAID_PLANS.has(subscription.plan) && ["active", "trialing"].includes(subscription.status));
+  const withinWindow = Boolean(alias && Date.now() < new Date(alias.created_at).getTime() + EDIT_WINDOW_MS);
+
+  return { supabase, user, alias, paid, withinWindow, allowed: Boolean(alias && paid && withinWindow) };
+}
+
+function lockedMessage(paid: boolean, withinWindow: boolean) {
+  if (!paid) return "Editing and deleting aliases are available on Starter, Pro, and Business plans.";
+  if (!withinWindow) return "This alias is locked. Paid plans can edit or delete an alias only within 3 minutes of creation.";
+  return "This alias cannot be changed.";
 }
 
 export async function logout() {
@@ -58,7 +83,7 @@ export async function toggleAlias(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { error } = await supabase.from("aliases").update({ enabled: enabled.data !== "true" }).eq("id", id.data);
+  const { error } = await supabase.from("aliases").update({ enabled: enabled.data !== "true" }).eq("id", id.data).eq("user_id", user.id);
   if (error) throw error;
   refreshAliasViews();
 }
@@ -68,27 +93,52 @@ export async function renameAlias(formData: FormData): Promise<AliasActionState>
   const label = z.string().trim().min(1).max(60).safeParse(formData.get("label"));
   if (!id.success || !label.success) return { status: "error", message: "Enter a label between 1 and 60 characters." };
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const { error } = await supabase
+  const access = await getAliasMutationAccess(id.data);
+  if (!access.allowed) return { status: "error", message: lockedMessage(access.paid, access.withinWindow) };
+
+  const { error } = await access.supabase
     .from("aliases")
     .update({ label: label.data })
     .eq("id", id.data)
-    .eq("user_id", user.id);
-  if (error) return { status: "error", message: "Could not update the label. Please try again." };
+    .eq("user_id", access.user.id);
+  if (error) return { status: "error", message: error.message.includes("ALIAS_EDIT_LOCKED") ? lockedMessage(access.paid, false) : "Could not update the label. Please try again." };
 
   refreshAliasViews();
   return { status: "success", message: "Label updated." };
 }
 
-export async function deleteAlias(formData: FormData) {
+export async function renameAliasAddress(formData: FormData): Promise<AliasActionState> {
   const id = z.uuid().safeParse(formData.get("id"));
-  if (!id.success) return;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const { error } = await supabase.from("aliases").delete().eq("id", id.data);
-  if (error) throw error;
+  const localPart = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9._-]{5,47}$/, "Use 6–48 lowercase letters, numbers, dots, underscores, or hyphens.").safeParse(formData.get("local_part"));
+  if (!id.success || !localPart.success) return { status: "error", message: localPart.success ? "Invalid alias." : localPart.error.issues[0]?.message || "Invalid alias." };
+
+  const access = await getAliasMutationAccess(id.data);
+  if (!access.allowed) return { status: "error", message: lockedMessage(access.paid, access.withinWindow) };
+
+  const { error } = await access.supabase
+    .from("aliases")
+    .update({ local_part: localPart.data })
+    .eq("id", id.data)
+    .eq("user_id", access.user.id);
+  if (error) {
+    if (error.code === "23505") return { status: "error", message: "That alias address is already in use." };
+    return { status: "error", message: error.message.includes("ALIAS_EDIT_LOCKED") ? lockedMessage(access.paid, false) : "Could not update the alias address. Please try again." };
+  }
+
   refreshAliasViews();
+  return { status: "success", message: "Alias address updated." };
+}
+
+export async function deleteAlias(formData: FormData): Promise<AliasActionState> {
+  const id = z.uuid().safeParse(formData.get("id"));
+  if (!id.success) return { status: "error", message: "Invalid alias." };
+
+  const access = await getAliasMutationAccess(id.data);
+  if (!access.allowed) return { status: "error", message: lockedMessage(access.paid, access.withinWindow) };
+
+  const { error } = await access.supabase.from("aliases").delete().eq("id", id.data).eq("user_id", access.user.id);
+  if (error) return { status: "error", message: error.message.includes("ALIAS_DELETE_LOCKED") ? lockedMessage(access.paid, false) : "Could not delete the alias." };
+
+  refreshAliasViews();
+  return { status: "success", message: "Alias deleted." };
 }
