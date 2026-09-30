@@ -17,6 +17,12 @@ export function LoginForm({ allowSignups, defaultMode = "login", next = "/dashbo
       <p>{mode === "login" ? "Sign in to continue to your BatMail account." : "Register free and start with 3 private aliases."}</p>
       <form action={formAction} className="form-grid">
         <input type="hidden" name="next" value={next} />
+        {mode === "signup" ? (
+          <div className="field">
+            <label htmlFor="full_name">Full name</label>
+            <input id="full_name" name="full_name" type="text" autoComplete="name" placeholder="Juan Dela Cruz" minLength={2} maxLength={100} required />
+          </div>
+        ) : null}
         <div className="field">
           <label htmlFor="email">Email address</label>
           <input id="email" name="email" type="email" autoComplete="email" placeholder="you@example.com" required />
