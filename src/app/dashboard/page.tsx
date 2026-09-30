@@ -9,8 +9,12 @@ export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const { data: aliasesData } = await supabase.from("aliases").select("*").order("created_at", { ascending: false });
+  const [{ data: aliasesData }, { data: subscription }] = await Promise.all([
+    supabase.from("aliases").select("*").order("created_at", { ascending: false }),
+    supabase.from("user_subscriptions").select("plan,status").maybeSingle(),
+  ]);
   const aliases = (aliasesData || []) as AliasRow[];
+  const canEditAliases = Boolean(subscription && ["starter", "pro", "business"].includes(subscription.plan) && ["active", "trialing"].includes(subscription.status));
   const enabled = aliases.filter((alias) => alias.enabled).length;
   const forwarded = aliases.reduce((sum, alias) => sum + (alias.forwarded_count || 0), 0);
 
@@ -29,7 +33,7 @@ export default async function DashboardPage() {
 
       <section className="panel" aria-labelledby="aliases-heading">
         <div className="panel-head"><div><h2 id="aliases-heading">Recent aliases</h2><p>Your newest protected email identities</p></div><span>{forwardingDomain}</span></div>
-        <AliasList aliases={aliases.slice(0, 10)} />
+        <AliasList aliases={aliases.slice(0, 10)} canEditAliases={canEditAliases} />
       </section>
     </div>
   );
