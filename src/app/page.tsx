@@ -7,7 +7,7 @@ import styles from "./landing-pricing.module.css";
 const plans = [
   {
     name: "Free",
-    price: "$0",
+    price: "₱0",
     description: "For trying BatMail and protecting a few important accounts.",
     aliases: "3 aliases",
     features: ["3 private aliases", "Private email forwarding", "Turn aliases on or off", "Activity inbox"],
@@ -16,7 +16,7 @@ const plans = [
   },
   {
     name: "Starter",
-    price: "$3",
+    price: "₱149",
     description: "For everyday personal use across shopping, apps, and newsletters.",
     aliases: "20 aliases",
     features: ["20 private aliases", "Everything in Free", "More room for accounts", "Priority product updates"],
@@ -25,7 +25,7 @@ const plans = [
   },
   {
     name: "Pro",
-    price: "$7",
+    price: "₱349",
     description: "For power users who want a separate identity almost everywhere.",
     aliases: "100 aliases",
     features: ["100 private aliases", "Everything in Starter", "Higher usage capacity", "Built for heavy personal use"],
@@ -34,7 +34,7 @@ const plans = [
   },
   {
     name: "Business",
-    price: "$15",
+    price: "₱749",
     description: "For teams, operations, and larger alias requirements.",
     aliases: "1,000 aliases",
     features: ["1,000 private aliases", "Everything in Pro", "Business-scale capacity", "Ready for team features"],
@@ -150,7 +150,7 @@ export default function Home() {
       <section className={`${styles.section} ${styles.pricingSection}`} id="pricing">
         <div className={styles.pricingHeader}>
           <div><div className={styles.sectionEyebrow}>Simple pricing</div><h2>Start free. Upgrade when you need more.</h2></div>
-          <p>Every account starts on Free. Choose a higher plan when you need more aliases for more accounts, projects, or team workflows.</p>
+          <p>Pricing is in Philippine pesos. Every account starts on Free, then you can upgrade when you need more aliases for more accounts, projects, or team workflows.</p>
         </div>
         <div className={styles.pricingGrid}>
           {plans.map((plan) => (
@@ -164,7 +164,7 @@ export default function Home() {
             </article>
           ))}
         </div>
-        <div className={styles.billingNote}>Free registration is available now. Paid checkout buttons become chargeable once the payment gateway is connected.</div>
+        <div className={styles.billingNote}>All prices are shown in PHP. Free registration is available now. Paid checkout buttons become chargeable once the payment gateway is connected.</div>
       </section>
 
       <section className={`${styles.section} ${styles.faqSection}`} id="faq">
