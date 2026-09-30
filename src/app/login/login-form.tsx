@@ -6,7 +6,7 @@ import { login, signup, type AuthState } from "./actions";
 
 const initialState: AuthState = {};
 
-export function LoginForm({ allowSignups, defaultMode = "login" }: { allowSignups: boolean; defaultMode?: "login" | "signup" }) {
+export function LoginForm({ allowSignups, defaultMode = "login", next = "/dashboard" }: { allowSignups: boolean; defaultMode?: "login" | "signup"; next?: string }) {
   const [mode, setMode] = useState<"login" | "signup">(defaultMode);
   const action = mode === "login" ? login : signup;
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -14,8 +14,9 @@ export function LoginForm({ allowSignups, defaultMode = "login" }: { allowSignup
   return (
     <div className="auth-card">
       <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
-      <p>{mode === "login" ? "Sign in to manage your private aliases." : "Register free and start with 3 private aliases."}</p>
+      <p>{mode === "login" ? "Sign in to continue to your BatMail account." : "Register free and start with 3 private aliases."}</p>
       <form action={formAction} className="form-grid">
+        <input type="hidden" name="next" value={next} />
         <div className="field">
           <label htmlFor="email">Email address</label>
           <input id="email" name="email" type="email" autoComplete="email" placeholder="you@example.com" required />
