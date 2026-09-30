@@ -138,4 +138,4 @@ BatMail masks email addresses and headers; it does not rewrite third-party messa
 content. A sender name, logo, link, tracking element, or footer inside the email
 body can still identify the website that sent the message.
 
-<!-- deployment refresh: 2026-09-30 -->
+<!-- deployment refresh after Git reconnect: 2026-09-30 -->
