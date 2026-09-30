@@ -16,13 +16,21 @@ const navItems = [
 export function DashboardNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const items = isAdmin
-    ? [...navItems, { href: "/dashboard/admin/payments", label: "Payment approvals", icon: ShieldIcon }]
+    ? [
+        ...navItems,
+        { href: "/dashboard/admin", label: "Admin dashboard", icon: GridIcon },
+        { href: "/dashboard/admin/payments", label: "Payment approvals", icon: ShieldIcon },
+      ]
     : navItems;
 
   return (
     <nav className="sidebar-nav" aria-label="Dashboard navigation">
       {items.map(({ href, label, icon: Icon }) => {
-        const active = href === "/dashboard" ? pathname === href : pathname.startsWith(href);
+        const active = href === "/dashboard"
+          ? pathname === href
+          : href === "/dashboard/admin"
+            ? pathname === href
+            : pathname.startsWith(href);
 
         return (
           <Link key={href} className={active ? "active" : undefined} href={href} aria-current={active ? "page" : undefined}>
