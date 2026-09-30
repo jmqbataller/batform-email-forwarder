@@ -18,7 +18,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=${encodeURIComponent(nextPath)}`);
+  if (!user) redirect(`/login?mode=signup&next=${encodeURIComponent(nextPath)}`);
 
   const { data: latestPayment } = await supabase
     .from("payment_submissions")
