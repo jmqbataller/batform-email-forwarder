@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { allowSignups, siteUrl } from "@/lib/config";
+import { siteUrl } from "@/lib/config";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState = { error?: string; message?: string };
@@ -26,27 +26,19 @@ export async function login(_: AuthState, formData: FormData): Promise<AuthState
 }
 
 export async function signup(_: AuthState, formData: FormData): Promise<AuthState> {
-  if (!allowSignups) {
-    return { error: "New accounts are currently invite-only." };
-  }
   const parsed = credentialsSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
-  const supabase = await createClient();
-  const { data: invited, error: inviteError } = await supabase.rpc(
-    "is_signup_allowed",
-    { candidate_email: parsed.data.email.toLowerCase() },
-  );
-  if (inviteError || !invited) {
-    return { error: "This email address is not invited to BatMail." };
-  }
 
-  const { error } = await supabase.auth.signUp({
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signUp({
     ...parsed.data,
     options: { emailRedirectTo: `${siteUrl}/auth/callback` },
   });
+
   if (error) return { error: error.message };
-  return { message: "Check your inbox to confirm your account." };
+  if (data.session) redirect("/dashboard");
+  return { message: "Account created. Check your inbox to confirm your email, then sign in." };
 }

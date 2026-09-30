@@ -15,6 +15,7 @@ function refreshAliasViews() {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/aliases");
   revalidatePath("/dashboard/inbox");
+  revalidatePath("/dashboard/subscription");
 }
 
 export async function logout() {
@@ -40,6 +41,9 @@ export async function createAlias(_state: AliasActionState, formData: FormData):
     if (!error) {
       refreshAliasViews();
       return { status: "success", message: "Alias created and ready to receive mail." };
+    }
+    if (error.message?.includes("ALIAS_QUOTA_REACHED")) {
+      return { status: "error", message: "You reached your plan's alias limit. Upgrade your subscription to create more aliases." };
     }
     if (error.code !== "23505" || attempt === 3) return { status: "error", message: "Could not create an alias. Please try again." };
   }

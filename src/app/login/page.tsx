@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckIcon, ShieldIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
-import { allowSignups } from "@/lib/config";
 import { createClient } from "@/lib/supabase/server";
 import { LoginForm } from "./login-form";
 
@@ -23,7 +22,7 @@ export default async function LoginPage() {
         </div>
         <div className="auth-proof"><span><ShieldIcon /> Verified delivery</span><span><CheckIcon /> Private by default</span></div>
       </section>
-      <section className="auth-main"><LoginForm allowSignups={allowSignups} /></section>
+      <section className="auth-main"><LoginForm allowSignups /></section>
     </main>
   );
 }
