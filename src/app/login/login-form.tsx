@@ -33,7 +33,12 @@ export function LoginForm({ allowSignups, defaultMode = "login", next = "/dashbo
         </button>
       </form>
       {allowSignups ? (
-        <button className="logout-button auth-footnote" type="button" onClick={() => setMode(mode === "login" ? "signup" : "login")}>
+        <button
+          className="auth-footnote"
+          type="button"
+          onClick={() => setMode(mode === "login" ? "signup" : "login")}
+          style={{ width: "100%", border: 0, background: "transparent", color: "var(--accent)", cursor: "pointer", fontWeight: 700 }}
+        >
           {mode === "login" ? "New to BatMail? Create a free account" : "Already registered? Sign in"}
         </button>
       ) : (
