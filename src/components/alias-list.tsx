@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useMemo, useState } from "react";
 import { AliasActionButton } from "@/components/alias-action-button";
+import { AliasAddressEditor } from "@/components/alias-address-editor";
 import { AliasLabelEditor } from "@/components/alias-label-editor";
 import { CopyButton } from "@/components/copy-button";
 import { EyeOffIcon, MailIcon, SearchIcon } from "@/components/icons";
@@ -9,7 +10,9 @@ import { forwardingDomain } from "@/lib/config";
 import type { AliasRow } from "@/lib/types";
 import { deleteAlias, toggleAlias } from "@/app/dashboard/actions";
 
-export function AliasList({ aliases, searchable = false }: { aliases: AliasRow[]; searchable?: boolean }) {
+const EDIT_WINDOW_MS = 3 * 60 * 1000;
+
+export function AliasList({ aliases, searchable = false, canEditAliases = false }: { aliases: AliasRow[]; searchable?: boolean; canEditAliases?: boolean }) {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const filteredAliases = useMemo(() => {
@@ -56,17 +59,19 @@ export function AliasList({ aliases, searchable = false }: { aliases: AliasRow[]
         <><div className="list-columns alias-columns" aria-hidden="true"><span>Private alias</span><span>Destination</span><span>Status & actions</span></div><div className="alias-list" style={{ opacity: isUpdating ? 0.65 : 1 }}>
           {filteredAliases.map((alias) => {
             const address = `${alias.local_part}@${forwardingDomain}`;
+            const withinEditWindow = Date.now() < new Date(alias.created_at).getTime() + EDIT_WINDOW_MS;
+            const canModify = canEditAliases && withinEditWindow;
 
             return (
               <article className="alias-row" key={alias.id}>
-                <div className="alias-main"><span className="alias-glyph"><MailIcon /></span><div><strong className="alias-address" title={address}>{address}</strong><AliasLabelEditor aliasId={alias.id} label={alias.label} /></div></div>
+                <div className="alias-main"><span className="alias-glyph"><MailIcon /></span><div><AliasAddressEditor aliasId={alias.id} localPart={alias.local_part} canEdit={canModify} /><AliasLabelEditor aliasId={alias.id} label={alias.label} canEdit={canModify} />{canEditAliases && !withinEditWindow ? <small className="alias-lock-note">Locked after 3 minutes</small> : !canEditAliases ? <small className="alias-lock-note">Upgrade to edit or delete</small> : null}</div></div>
                 <div className="destination"><small>Forwards to</small><strong title={alias.destination}>{alias.destination}</strong></div>
                 <div className="alias-controls">
                   <span className={`alias-state ${alias.enabled ? "enabled" : ""}`}><i /> {alias.enabled ? "Active" : "Paused"}</span>
                   <div className="row-actions">
                     <CopyButton value={address} />
                     <form action={toggleAlias}><input type="hidden" name="id" value={alias.id} /><input type="hidden" name="enabled" value={String(alias.enabled)} /><AliasActionButton kind="toggle" label={alias.enabled ? "Pause alias" : "Enable alias"} /></form>
-                    <form action={deleteAlias}><input type="hidden" name="id" value={alias.id} /><AliasActionButton kind="delete" label="Delete alias" confirmMessage={`Delete ${address}? This cannot be undone.`} /></form>
+                    {canModify ? <form action={deleteAlias}><input type="hidden" name="id" value={alias.id} /><AliasActionButton kind="delete" label="Delete alias" confirmMessage={`Delete ${address}? This cannot be undone.`} /></form> : null}
                   </div>
                 </div>
               </article>
