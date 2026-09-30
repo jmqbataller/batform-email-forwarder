@@ -13,12 +13,15 @@ const navItems = [
   { href: "/dashboard/security", label: "Security", icon: KeyIcon },
 ] as const;
 
-export function DashboardNav() {
+export function DashboardNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
+  const items = isAdmin
+    ? [...navItems, { href: "/dashboard/admin/payments", label: "Payment approvals", icon: ShieldIcon }]
+    : navItems;
 
   return (
     <nav className="sidebar-nav" aria-label="Dashboard navigation">
-      {navItems.map(({ href, label, icon: Icon }) => {
+      {items.map(({ href, label, icon: Icon }) => {
         const active = href === "/dashboard" ? pathname === href : pathname.startsWith(href);
 
         return (
