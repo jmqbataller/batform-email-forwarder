@@ -137,3 +137,5 @@ would expose the original sender (for example, Canva) in Gmail.
 BatMail masks email addresses and headers; it does not rewrite third-party message
 content. A sender name, logo, link, tracking element, or footer inside the email
 body can still identify the website that sent the message.
+
+<!-- deployment refresh: 2026-09-30 -->
