@@ -9,7 +9,7 @@ export async function GET() {
 
   return new Response(bytes, {
     headers: {
-      "Content-Type": "image/jpeg",
+      "Content-Type": "image/png",
       "Cache-Control": "public, max-age=86400, s-maxage=86400",
     },
   });
