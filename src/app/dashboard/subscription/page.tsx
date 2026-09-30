@@ -12,10 +12,38 @@ const planLimits: Record<string, number> = {
 };
 
 const plans = [
-  { name: "Free", key: "free", limit: 3, price: "₱0", description: "For trying BatMail and protecting a few important accounts." },
-  { name: "Starter", key: "starter", limit: 20, price: "₱149", description: "For everyday accounts, shopping, newsletters, and signups." },
-  { name: "Pro", key: "pro", limit: 100, price: "₱349", description: "For power users managing many private email identities." },
-  { name: "Business", key: "business", limit: 1000, price: "₱749", description: "For teams and higher-volume alias management." },
+  {
+    name: "Free",
+    key: "free",
+    limit: 3,
+    price: "₱0",
+    description: "A simple starting point for protecting a few important accounts.",
+    features: ["3 private aliases", "Private forwarding", "Pause aliases anytime"],
+  },
+  {
+    name: "Starter",
+    key: "starter",
+    limit: 20,
+    price: "₱149",
+    description: "For everyday shopping, apps, newsletters, and personal signups.",
+    features: ["20 private aliases", "Edit/delete within 3 minutes", "Everything in Free"],
+  },
+  {
+    name: "Pro",
+    key: "pro",
+    limit: 100,
+    price: "₱349",
+    description: "For power users managing a larger set of private identities.",
+    features: ["100 private aliases", "Everything in Starter", "Higher usage capacity"],
+  },
+  {
+    name: "Business",
+    key: "business",
+    limit: 1000,
+    price: "₱749",
+    description: "For teams and workflows that need much more alias capacity.",
+    features: ["1,000 private aliases", "Everything in Pro", "Business-scale capacity"],
+  },
 ] as const;
 
 export default async function SubscriptionPage() {
@@ -35,57 +63,89 @@ export default async function SubscriptionPage() {
   const currentStatus = subscription?.status || "active";
   const limit = planLimits[currentPlan] || 3;
   const used = aliasCount || 0;
+  const usagePercent = admin ? 100 : Math.min(100, Math.round((used / Math.max(limit, 1)) * 100));
   const planLabel = admin ? "Admin" : currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1);
+  const renewalLabel = admin
+    ? "No renewal required"
+    : subscription?.current_period_end
+      ? new Date(subscription.current_period_end).toLocaleDateString("en-PH")
+      : currentPlan === "free"
+        ? "No renewal"
+        : "Not scheduled";
 
   return (
     <div className="dashboard">
       <div className="page-head">
         <div>
           <span className="page-kicker">Subscription</span>
-          <h1>Your plan</h1>
-          <p>Review your current plan, usage, renewal, and payment approval status.</p>
+          <h1>Plan & billing</h1>
+          <p>See your current access, alias usage, payment status, and available plans in one place.</p>
         </div>
-        {!admin ? <Link className="button button-primary" href="/checkout?plan=starter">Upgrade plan</Link> : null}
+        {!admin ? <Link className="button button-primary" href="#plans">{currentPlan === "free" ? "Upgrade plan" : "Change plan"}</Link> : null}
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card"><div className="stat-top"><span>Current plan</span></div><strong className="stat-value">{planLabel}</strong><span className="stat-note">{admin ? "Unrestricted admin access" : `Status: ${currentStatus}`}</span></div>
-        <div className="stat-card"><div className="stat-top"><span>Alias usage</span></div><strong className="stat-value">{admin ? `${used} / Unlimited` : `${used} / ${limit}`}</strong><span className="stat-note">{admin ? "No alias cap for admin accounts" : "Aliases used on this plan"}</span></div>
-        <div className="stat-card"><div className="stat-top"><span>{admin ? "Access" : "Renewal"}</span></div><strong className="stat-value">{admin ? "Unlimited" : subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("en-PH") : "—"}</strong><span className="stat-note">{admin ? "No subscription renewal required for admin access" : subscription?.provider === "manual_gcash" ? "Manual GCash subscription" : "No paid billing yet"}</span></div>
-      </div>
+      <section className="subscription-overview" aria-label="Current subscription summary">
+        <div className="subscription-hero">
+          <span className="subscription-label">Current plan</span>
+          <h2>{planLabel}</h2>
+          <p>{admin ? "Unrestricted administrator access with no alias cap or subscription renewal requirement." : `Your ${planLabel} plan is currently ${currentStatus}. Manage your capacity or choose another plan below.`}</p>
+          <div className="subscription-meta">
+            <span>Status<strong>{admin ? "Unrestricted" : currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}</strong></span>
+            <span>Renewal<strong>{renewalLabel}</strong></span>
+            <span>Billing<strong>{admin ? "Admin access" : subscription?.provider === "manual_gcash" ? "Manual GCash" : currentPlan === "free" ? "Free" : "Manual"}</strong></span>
+          </div>
+        </div>
+
+        <div className="usage-card">
+          <span>Alias usage</span>
+          <strong>{admin ? `${used} / Unlimited` : `${used} / ${limit.toLocaleString()}`}</strong>
+          <p>{admin ? "No alias limit applies to administrator accounts." : `${Math.max(limit - used, 0).toLocaleString()} aliases remaining on this plan.`}</p>
+          <div className="usage-track" aria-hidden="true"><i style={{ width: `${usagePercent}%` }} /></div>
+          <p>{admin ? "Unlimited capacity" : `${usagePercent}% of plan capacity used`}</p>
+        </div>
+      </section>
 
       {!admin && latestPayment ? (
-        <section className="panel">
-          <div className="panel-head">
-            <div><h2>Latest payment request</h2><p>{new Date(latestPayment.submitted_at).toLocaleString("en-PH")}</p></div>
-            <span>{latestPayment.status}</span>
+        <section className="payment-status-card" aria-label="Latest payment request">
+          <div>
+            <h3>{latestPayment.status === "pending" ? "Payment awaiting review" : "Latest payment request"}</h3>
+            <p>
+              {latestPayment.requested_plan.charAt(0).toUpperCase() + latestPayment.requested_plan.slice(1)} plan · submitted {new Date(latestPayment.submitted_at).toLocaleString("en-PH")}
+              {latestPayment.admin_note ? ` · ${latestPayment.admin_note}` : ""}
+            </p>
           </div>
-          <p>Requested plan: <strong>{latestPayment.requested_plan.charAt(0).toUpperCase() + latestPayment.requested_plan.slice(1)}</strong></p>
-          {latestPayment.status === "pending" ? <p>Your current plan remains unchanged until the payment is approved.</p> : null}
-          {latestPayment.admin_note ? <p>Admin note: {latestPayment.admin_note}</p> : null}
-          {latestPayment.status !== "pending" ? <Link className="button button-primary" href={`/checkout?plan=${latestPayment.requested_plan}`}>Open checkout</Link> : null}
+          <span className={`status-badge ${latestPayment.status}`}>{latestPayment.status}</span>
         </section>
       ) : null}
 
       {!admin ? (
-        <section className="panel" aria-labelledby="plans-heading">
-          <div className="panel-head"><div><h2 id="plans-heading">Available plans</h2><p>Monthly Philippine Peso pricing.</p></div></div>
-          <div className="stats-grid">
-            {plans.map((plan) => (
-              <div className="stat-card" key={plan.key}>
-                <div className="stat-top"><span>{plan.name}</span></div>
-                <strong className="stat-value">{plan.price}</strong>
-                <span className="stat-note">per month · {plan.limit.toLocaleString()} aliases</span>
-                <p>{plan.description}</p>
-                {currentPlan === plan.key ? (
-                  <span className="stat-note">Current plan</span>
-                ) : plan.key === "free" ? (
-                  <span className="stat-note">Included by default</span>
-                ) : (
-                  <Link className="button button-ghost" href={`/checkout?plan=${plan.key}`}>Choose {plan.name}</Link>
-                )}
-              </div>
-            ))}
+        <section className="panel plans-panel" id="plans" aria-labelledby="plans-heading">
+          <div className="panel-head">
+            <div><h2 id="plans-heading">Available plans</h2><p>Monthly pricing in Philippine pesos. Paid plans activate after manual payment approval.</p></div>
+            <span>PHP / month</span>
+          </div>
+          <div className="plans-grid">
+            {plans.map((plan) => {
+              const isCurrent = currentPlan === plan.key;
+              const isRecommended = plan.key === "starter" && !isCurrent;
+              return (
+                <article className={`plan-option ${isCurrent ? "current" : ""} ${isRecommended ? "recommended" : ""}`} key={plan.key}>
+                  {isCurrent ? <span className="plan-badge">Current</span> : isRecommended ? <span className="plan-badge">Popular</span> : null}
+                  <h3>{plan.name}</h3>
+                  <p>{plan.description}</p>
+                  <div className="plan-price"><strong>{plan.price}</strong><span>/month</span></div>
+                  <div className="plan-limit">{plan.limit.toLocaleString()} aliases included</div>
+                  <ul className="plan-features">{plan.features.map((feature) => <li key={feature}>{feature}</li>)}</ul>
+                  {isCurrent ? (
+                    <span className="plan-current">Your current plan</span>
+                  ) : plan.key === "free" ? (
+                    <span className="plan-current">Free tier</span>
+                  ) : (
+                    <Link className={`button ${plan.key === "starter" ? "button-primary" : "button-ghost"}`} href={`/checkout?plan=${plan.key}`}>Choose {plan.name}</Link>
+                  )}
+                </article>
+              );
+            })}
           </div>
         </section>
       ) : null}
