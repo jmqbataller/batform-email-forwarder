@@ -61,7 +61,7 @@ export default async function DashboardPage() {
 
       <section className="panel" aria-labelledby="aliases-heading">
         <div className="panel-head"><div><h2 id="aliases-heading">Recent aliases</h2><p>Your newest protected email identities</p></div><span>{forwardingDomain}</span></div>
-        <AliasList aliases={aliases.slice(0, 10)} canEditAliases={canEditAliases} />
+        <AliasList aliases={aliases.slice(0, 10)} canEditAliases={canEditAliases} isAdmin={admin} />
       </section>
     </div>
   );
