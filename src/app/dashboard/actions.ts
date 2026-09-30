@@ -129,16 +129,15 @@ export async function renameAliasAddress(formData: FormData): Promise<AliasActio
   return { status: "success", message: "Alias address updated." };
 }
 
-export async function deleteAlias(formData: FormData): Promise<AliasActionState> {
+export async function deleteAlias(formData: FormData): Promise<void> {
   const id = z.uuid().safeParse(formData.get("id"));
-  if (!id.success) return { status: "error", message: "Invalid alias." };
+  if (!id.success) return;
 
   const access = await getAliasMutationAccess(id.data);
-  if (!access.allowed) return { status: "error", message: lockedMessage(access.paid, access.withinWindow) };
+  if (!access.allowed) return;
 
   const { error } = await access.supabase.from("aliases").delete().eq("id", id.data).eq("user_id", access.user.id);
-  if (error) return { status: "error", message: error.message.includes("ALIAS_DELETE_LOCKED") ? lockedMessage(access.paid, false) : "Could not delete the alias." };
+  if (error) return;
 
   refreshAliasViews();
-  return { status: "success", message: "Alias deleted." };
 }
