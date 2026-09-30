@@ -9,6 +9,7 @@ import { EyeOffIcon, MailIcon, SearchIcon } from "@/components/icons";
 import { forwardingDomain } from "@/lib/config";
 import type { AliasRow } from "@/lib/types";
 import { deleteAlias, toggleAlias } from "@/app/dashboard/actions";
+import styles from "./alias-list.module.css";
 
 const EDIT_WINDOW_MS = 3 * 60 * 1000;
 
@@ -23,27 +24,63 @@ export function AliasList({ aliases, searchable = false, canEditAliases = false,
       return [alias.label, address, alias.destination].filter(Boolean).some((value) => value!.toLowerCase().includes(normalizedQuery));
     });
   }, [aliases, deferredQuery]);
-  const isUpdating = query !== deferredQuery;
 
   if (!aliases.length) {
-    return <div className="empty-state"><div><span className="empty-state-icon"><EyeOffIcon /></span><h3>No aliases yet</h3><p>Create your first random alias. Messages sent to it will arrive in your verified account inbox.</p></div></div>;
+    return <div className={styles.empty}><EyeOffIcon /><h3>No aliases yet</h3><p>Create your first private alias to get started.</p></div>;
   }
 
   return (
-    <>
-      {searchable ? <div className="list-toolbar"><label className="search-field" htmlFor="alias-label-search"><SearchIcon /><span className="sr-only">Search aliases by label</span><input id="alias-label-search" type="search" placeholder="Search by label" value={query} onChange={(event) => setQuery(event.target.value)} autoComplete="off" /></label><span aria-live="polite">{filteredAliases.length} {filteredAliases.length === 1 ? "match" : "matches"}</span></div> : null}
-      {filteredAliases.length ? <><div className="list-columns alias-columns" aria-hidden="true"><span>Private alias</span><span>Destination</span><span>Status & actions</span></div><div className="alias-list" style={{ opacity: isUpdating ? 0.65 : 1 }}>
+    <div className={styles.wrap}>
+      {searchable ? (
+        <div className={styles.toolbar}>
+          <label className={styles.search} htmlFor="alias-search">
+            <SearchIcon />
+            <input id="alias-search" type="search" placeholder="Search aliases" value={query} onChange={(event) => setQuery(event.target.value)} autoComplete="off" />
+          </label>
+          <span className={styles.count}>{filteredAliases.length} {filteredAliases.length === 1 ? "alias" : "aliases"}</span>
+        </div>
+      ) : null}
+
+      <div className={styles.list}>
         {filteredAliases.map((alias) => {
           const address = `${alias.local_part}@${forwardingDomain}`;
           const withinEditWindow = Date.now() < new Date(alias.created_at).getTime() + EDIT_WINDOW_MS;
           const canModify = isAdmin || (canEditAliases && withinEditWindow);
-          return <article className="alias-row" key={alias.id}>
-            <div className="alias-main"><span className="alias-glyph"><MailIcon /></span><div><AliasAddressEditor aliasId={alias.id} localPart={alias.local_part} canEdit={canModify} /><AliasLabelEditor aliasId={alias.id} label={alias.label} canEdit={canModify} />{isAdmin ? <small className="alias-lock-note">Admin access · unrestricted</small> : canEditAliases && !withinEditWindow ? <small className="alias-lock-note">Locked after 3 minutes</small> : !canEditAliases ? <small className="alias-lock-note">Upgrade to edit or delete</small> : null}</div></div>
-            <div className="destination"><small>Forwards to</small><strong title={alias.destination}>{alias.destination}</strong></div>
-            <div className="alias-controls"><span className={`alias-state ${alias.enabled ? "enabled" : ""}`}><i /> {alias.enabled ? "Active" : "Paused"}</span><div className="row-actions"><CopyButton value={address} /><form action={toggleAlias}><input type="hidden" name="id" value={alias.id} /><input type="hidden" name="enabled" value={String(alias.enabled)} /><AliasActionButton kind="toggle" label={alias.enabled ? "Pause alias" : "Enable alias"} /></form>{canModify ? <form action={deleteAlias}><input type="hidden" name="id" value={alias.id} /><AliasActionButton kind="delete" label="Delete alias" confirmMessage={`Delete ${address}?`} /></form> : null}</div></div>
-          </article>;
+
+          return (
+            <article className={styles.card} key={alias.id}>
+              <div className={styles.identity}>
+                <span className={styles.icon}><MailIcon /></span>
+                <div className={styles.details}>
+                  <div className={styles.addressWrap}><AliasAddressEditor aliasId={alias.id} localPart={alias.local_part} canEdit={canModify} /></div>
+                  <AliasLabelEditor aliasId={alias.id} label={alias.label} canEdit={canModify} />
+                  <div className={styles.metaRow}>
+                    {isAdmin ? <><span className={styles.badge}>Admin</span><span className={`${styles.badge} ${styles.mutedBadge}`}>Unlimited</span></> : null}
+                    {!isAdmin && canEditAliases && !withinEditWindow ? <span className={styles.lockNote}>Editing window expired</span> : null}
+                    {!isAdmin && !canEditAliases ? <span className={styles.lockNote}>Upgrade to edit or delete</span> : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.destination}>
+                <small>Forwards to</small>
+                <strong title={alias.destination}>{alias.destination}</strong>
+              </div>
+
+              <div className={styles.controls}>
+                <span className={`${styles.status} ${alias.enabled ? styles.statusOn : ""}`}><i className={styles.dot} />{alias.enabled ? "Active" : "Paused"}</span>
+                <div className={styles.actions}>
+                  <CopyButton value={address} />
+                  <form action={toggleAlias}><input type="hidden" name="id" value={alias.id} /><input type="hidden" name="enabled" value={String(alias.enabled)} /><AliasActionButton kind="toggle" label={alias.enabled ? "Pause alias" : "Enable alias"} /></form>
+                  {canModify ? <form action={deleteAlias}><input type="hidden" name="id" value={alias.id} /><AliasActionButton kind="delete" label="Delete alias" confirmMessage={`Delete ${address}? This cannot be undone.`} /></form> : null}
+                </div>
+              </div>
+            </article>
+          );
         })}
-      </div></> : <div className="empty-state filtered-empty"><div><span className="empty-state-icon"><SearchIcon /></span><h3>No matching label</h3><p>Try another label or search using the alias address.</p></div></div>}
-    </>
+      </div>
+
+      {!filteredAliases.length ? <div className={styles.empty}><SearchIcon /><h3>No matching aliases</h3><p>Try another label, address, or destination.</p></div> : null}
+    </div>
   );
 }
