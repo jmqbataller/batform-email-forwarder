@@ -5,6 +5,7 @@ import { LogOutIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "./actions";
+import "./console.css";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) redirect("/login");
