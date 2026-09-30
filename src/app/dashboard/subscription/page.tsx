@@ -23,16 +23,19 @@ export default async function SubscriptionPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: subscription }, { count: aliasCount }, { data: latestPayment }] = await Promise.all([
+  const [{ data: subscription }, { count: aliasCount }, { data: latestPayment }, { data: isAdmin }] = await Promise.all([
     supabase.from("user_subscriptions").select("plan,status,current_period_end,provider").eq("user_id", user.id).maybeSingle(),
     supabase.from("aliases").select("id", { count: "exact", head: true }).eq("user_id", user.id),
     supabase.from("payment_submissions").select("requested_plan,status,submitted_at,admin_note").eq("user_id", user.id).order("submitted_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.rpc("is_subscription_admin"),
   ]);
 
+  const admin = Boolean(isAdmin);
   const currentPlan = subscription?.plan || "free";
   const currentStatus = subscription?.status || "active";
   const limit = planLimits[currentPlan] || 3;
   const used = aliasCount || 0;
+  const planLabel = admin ? "Admin" : currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1);
 
   return (
     <div className="dashboard">
@@ -42,16 +45,16 @@ export default async function SubscriptionPage() {
           <h1>Your plan</h1>
           <p>Review your current plan, usage, renewal, and payment approval status.</p>
         </div>
-        <Link className="button button-primary" href="/checkout?plan=starter">Upgrade plan</Link>
+        {!admin ? <Link className="button button-primary" href="/checkout?plan=starter">Upgrade plan</Link> : null}
       </div>
 
       <div className="stats-grid">
-        <div className="stat-card"><div className="stat-top"><span>Current plan</span></div><strong className="stat-value">{currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}</strong><span className="stat-note">Status: {currentStatus}</span></div>
-        <div className="stat-card"><div className="stat-top"><span>Alias usage</span></div><strong className="stat-value">{used} / {limit}</strong><span className="stat-note">Aliases used on this plan</span></div>
-        <div className="stat-card"><div className="stat-top"><span>Renewal</span></div><strong className="stat-value">{subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("en-PH") : "—"}</strong><span className="stat-note">{subscription?.provider === "manual_gcash" ? "Manual GCash subscription" : "No paid billing yet"}</span></div>
+        <div className="stat-card"><div className="stat-top"><span>Current plan</span></div><strong className="stat-value">{planLabel}</strong><span className="stat-note">{admin ? "Unrestricted admin access" : `Status: ${currentStatus}`}</span></div>
+        <div className="stat-card"><div className="stat-top"><span>Alias usage</span></div><strong className="stat-value">{admin ? `${used} / Unlimited` : `${used} / ${limit}`}</strong><span className="stat-note">{admin ? "No alias cap for admin accounts" : "Aliases used on this plan"}</span></div>
+        <div className="stat-card"><div className="stat-top"><span>{admin ? "Access" : "Renewal"}</span></div><strong className="stat-value">{admin ? "Unlimited" : subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("en-PH") : "—"}</strong><span className="stat-note">{admin ? "No subscription renewal required for admin access" : subscription?.provider === "manual_gcash" ? "Manual GCash subscription" : "No paid billing yet"}</span></div>
       </div>
 
-      {latestPayment ? (
+      {!admin && latestPayment ? (
         <section className="panel">
           <div className="panel-head">
             <div><h2>Latest payment request</h2><p>{new Date(latestPayment.submitted_at).toLocaleString("en-PH")}</p></div>
@@ -64,26 +67,28 @@ export default async function SubscriptionPage() {
         </section>
       ) : null}
 
-      <section className="panel" aria-labelledby="plans-heading">
-        <div className="panel-head"><div><h2 id="plans-heading">Available plans</h2><p>Monthly Philippine Peso pricing.</p></div></div>
-        <div className="stats-grid">
-          {plans.map((plan) => (
-            <div className="stat-card" key={plan.key}>
-              <div className="stat-top"><span>{plan.name}</span></div>
-              <strong className="stat-value">{plan.price}</strong>
-              <span className="stat-note">per month · {plan.limit.toLocaleString()} aliases</span>
-              <p>{plan.description}</p>
-              {currentPlan === plan.key ? (
-                <span className="stat-note">Current plan</span>
-              ) : plan.key === "free" ? (
-                <span className="stat-note">Included by default</span>
-              ) : (
-                <Link className="button button-ghost" href={`/checkout?plan=${plan.key}`}>Choose {plan.name}</Link>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
+      {!admin ? (
+        <section className="panel" aria-labelledby="plans-heading">
+          <div className="panel-head"><div><h2 id="plans-heading">Available plans</h2><p>Monthly Philippine Peso pricing.</p></div></div>
+          <div className="stats-grid">
+            {plans.map((plan) => (
+              <div className="stat-card" key={plan.key}>
+                <div className="stat-top"><span>{plan.name}</span></div>
+                <strong className="stat-value">{plan.price}</strong>
+                <span className="stat-note">per month · {plan.limit.toLocaleString()} aliases</span>
+                <p>{plan.description}</p>
+                {currentPlan === plan.key ? (
+                  <span className="stat-note">Current plan</span>
+                ) : plan.key === "free" ? (
+                  <span className="stat-note">Included by default</span>
+                ) : (
+                  <Link className="button button-ghost" href={`/checkout?plan=${plan.key}`}>Choose {plan.name}</Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
