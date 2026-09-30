@@ -1,0 +1,31 @@
+.body {
+  margin: 0;
+  color: #35413d;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.78;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.link {
+  color: #087f6b;
+  font-weight: 650;
+  text-decoration: underline;
+  text-decoration-color: rgba(8, 127, 107, .28);
+  text-underline-offset: 2px;
+  transition: color .15s ease, text-decoration-color .15s ease, background .15s ease;
+}
+
+.link:hover {
+  color: #066a5a;
+  text-decoration-color: currentColor;
+  background: #f1faf7;
+}
+
+.link:focus-visible {
+  outline: 3px solid rgba(8, 127, 107, .16);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
