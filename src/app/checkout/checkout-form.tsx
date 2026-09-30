@@ -34,6 +34,7 @@ export function CheckoutForm({ userId, initialPlan, pendingPlan, pendingStatus }
       setError("Receipt must be 5 MB or smaller.");
       return;
     }
+
     const allowed = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
     if (!allowed.includes(file.type)) {
       setError("Upload a PNG, JPG, WEBP, or PDF receipt.");
@@ -51,7 +52,13 @@ export function CheckoutForm({ userId, initialPlan, pendingPlan, pendingStatus }
       return;
     }
 
-    const { error: insertError } = await supabase.from("payment_submissions").insert({ user_id: userId, requested_plan: initialPlan, amount_php: plan.price, receipt_path: receiptPath });
+    const { error: insertError } = await supabase.from("payment_submissions").insert({
+      user_id: userId,
+      requested_plan: initialPlan,
+      amount_php: plan.price,
+      receipt_path: receiptPath,
+    });
+
     if (insertError) {
       await supabase.storage.from("payment-receipts").remove([receiptPath]);
       setBusy(false);
@@ -69,40 +76,65 @@ export function CheckoutForm({ userId, initialPlan, pendingPlan, pendingStatus }
     <div className={styles.grid}>
       <section className={`${styles.card} ${styles.payment}`}>
         <div className={styles.sectionTitle}>
-          <div><h2>Complete your payment</h2><p>Pay through GCash, then upload your receipt. Your plan stays unchanged until approval.</p></div>
+          <div>
+            <h2>Complete your payment</h2>
+            <p>Use the QR below, then upload your receipt. Activation happens only after admin review.</p>
+          </div>
           <span className={styles.planPill}>Manual approval</span>
         </div>
 
-        {hasPending ? <div className={styles.pending}>You already have a {pendingPlan ? `${pendingPlan} ` : ""}payment request waiting for approval. You cannot submit another one yet.</div> : null}
+        {hasPending ? (
+          <div className={styles.pending}>
+            You already have a {pendingPlan ? `${pendingPlan} ` : ""}payment request waiting for approval. Your current plan remains active until review is complete.
+          </div>
+        ) : null}
 
         <div className={styles.step}>
           <span className={styles.stepNo}>1</span>
-          <div className={styles.stepBody}><h3>Scan the GCash QR</h3><p>Pay the exact amount shown in your order summary.</p><div className={styles.qrWrap}><img src="/gcash-payment.jpg" alt="GCash QR payment code" /></div></div>
+          <div className={styles.stepBody}>
+            <h3>Pay ₱{plan.price} via GCash</h3>
+            <p>Scan the QR code and pay the exact amount for the selected plan.</p>
+            <div className={styles.qrWrap}>
+              <img src="/gcash-payment" alt="GCash QR payment code" />
+            </div>
+          </div>
         </div>
 
         <div className={styles.step}>
           <span className={styles.stepNo}>2</span>
           <div className={styles.stepBody}>
-            <h3>Upload your payment receipt</h3><p>Accepted: JPG, PNG, WEBP, or PDF up to 5 MB.</p>
+            <h3>Upload your payment receipt</h3>
+            <p>Accepted files: JPG, PNG, WEBP, or PDF up to 5 MB.</p>
             <form className={styles.upload} onSubmit={submitPayment}>
-              <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={(event) => setFile(event.target.files?.[0] || null)} disabled={hasPending || busy} required />
-              <button className={`button button-primary button-large ${styles.submit}`} type="submit" disabled={!file || hasPending || busy}>{busy ? "Submitting…" : hasPending ? "Waiting for approval" : `Submit ₱${plan.price} payment`}</button>
+              <label className={styles.fileBox}>
+                <span>{file ? file.name : "Choose receipt file"}</span>
+                <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={(event) => setFile(event.target.files?.[0] || null)} disabled={hasPending || busy} required />
+              </label>
+              <button className={`button button-primary button-large ${styles.submit}`} type="submit" disabled={!file || hasPending || busy}>
+                {busy ? "Submitting…" : hasPending ? "Waiting for approval" : `Submit payment for review`}
+              </button>
             </form>
             {message ? <div className={styles.success}>{message}</div> : null}
             {error ? <div className={styles.error}>{error}</div> : null}
-            <p className={styles.note}>Activation is manual. Your paid features begin only after your receipt is approved.</p>
+            <p className={styles.note}>Your plan will not change automatically. It becomes active only after the receipt is approved.</p>
           </div>
         </div>
       </section>
 
       <aside className={`${styles.card} ${styles.summary}`}>
-        <span className={styles.planPill}>Selected plan</span>
+        <span className={styles.planPill}>Order summary</span>
+        <h2 className={styles.planName}>{plan.name}</h2>
         <div className={styles.price}>₱{plan.price}</div>
-        <div className={styles.per}>{plan.name} · per month</div>
+        <div className={styles.per}>per month</div>
+        <div className={styles.aliasCount}>{plan.aliases.toLocaleString()} aliases included</div>
         <ul className={styles.features}>{plan.features.map((feature) => <li key={feature}>{feature}</li>)}</ul>
+        <div className={styles.changeLabel}>Change plan</div>
         <div className={styles.change}>
-          {(Object.keys(PLAN_DATA) as PaidPlan[]).map((key) => <Link key={key} href={`/checkout?plan=${key}`} className={key === initialPlan ? styles.activePlan : undefined}>{PLAN_DATA[key].name}</Link>)}
+          {(Object.keys(PLAN_DATA) as PaidPlan[]).map((key) => (
+            <Link key={key} href={`/checkout?plan=${key}`} className={key === initialPlan ? styles.activePlan : undefined}>{PLAN_DATA[key].name}</Link>
+          ))}
         </div>
+        <Link href="/dashboard/subscription" className={styles.cancelLink}>Cancel and return to subscription</Link>
       </aside>
     </div>
   );
