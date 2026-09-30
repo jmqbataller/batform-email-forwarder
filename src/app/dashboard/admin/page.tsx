@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { GridIcon, MailIcon, ShieldIcon } from "@/components/icons";
 import { createClient } from "@/lib/supabase/server";
 import { manageCustomerSubscription } from "./actions";
+import styles from "./admin.module.css";
 
 export const metadata = { title: "Admin dashboard" };
 export const dynamic = "force-dynamic";
@@ -47,6 +48,15 @@ function formatDate(value: string | null) {
     day: "2-digit",
     timeZone: "Asia/Manila",
   }).format(new Date(value));
+}
+
+function initials(name: string, email: string) {
+  const source = name?.trim() || email.split("@")[0] || "U";
+  return source
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("");
 }
 
 export default async function AdminDashboardPage() {
@@ -125,7 +135,7 @@ export default async function AdminDashboardPage() {
         <div className="panel-head">
           <div>
             <h2 id="customer-management-heading">Customer management</h2>
-            <p>View customer details and manually activate, renew, change, or revoke subscriptions.</p>
+            <p>Manage plans without digging through raw subscription records.</p>
           </div>
           <span>{customers.length} accounts</span>
         </div>
@@ -133,78 +143,92 @@ export default async function AdminDashboardPage() {
         {customerError ? (
           <div className="empty-state"><div><h3>Unable to load customers</h3><p>{customerError.message}</p></div></div>
         ) : customers.length ? (
-          <div style={{ overflowX: "auto", padding: "0 20px 20px" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1080 }}>
-              <thead>
-                <tr style={{ textAlign: "left", borderBottom: "1px solid var(--border)" }}>
-                  <th style={{ padding: "14px 10px" }}>Customer</th>
-                  <th style={{ padding: "14px 10px" }}>Plan</th>
-                  <th style={{ padding: "14px 10px" }}>Status</th>
-                  <th style={{ padding: "14px 10px" }}>Aliases</th>
-                  <th style={{ padding: "14px 10px" }}>Expires</th>
-                  <th style={{ padding: "14px 10px" }}>Subscription actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.map((customer) => {
-                  const paid = customer.plan !== "free";
-                  return (
-                    <tr key={customer.user_id} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td style={{ padding: "16px 10px", verticalAlign: "top" }}>
-                        <div style={{ display: "grid", gap: 4 }}>
-                          <strong>{customer.name}</strong>
-                          <small>{customer.email}</small>
-                          <small>Joined {formatDate(customer.created_at)}</small>
-                        </div>
-                      </td>
-                      <td style={{ padding: "16px 10px", verticalAlign: "top" }}>
-                        <strong>{planLabel(customer.plan)}</strong>
-                      </td>
-                      <td style={{ padding: "16px 10px", verticalAlign: "top" }}>
-                        <span className={`alias-state ${customer.status === "active" || customer.status === "trialing" ? "enabled" : ""}`}>
-                          <i /> {customer.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: "16px 10px", verticalAlign: "top" }}>{customer.alias_count}</td>
-                      <td style={{ padding: "16px 10px", verticalAlign: "top" }}>{formatDate(customer.current_period_end)}</td>
-                      <td style={{ padding: "16px 10px", verticalAlign: "top" }}>
-                        <div style={{ display: "grid", gap: 10, minWidth: 360 }}>
-                          <form action={manageCustomerSubscription} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                            <input type="hidden" name="user_id" value={customer.user_id} />
-                            <input type="hidden" name="action" value="activate" />
-                            <select name="plan" defaultValue={paid ? customer.plan : "starter"} aria-label={`Plan for ${customer.email}`}>
-                              <option value="starter">Starter</option>
-                              <option value="pro">Pro</option>
-                              <option value="business">Business</option>
-                            </select>
-                            <input name="days" type="number" min="1" max="3650" defaultValue="30" aria-label="Subscription days" style={{ width: 82 }} />
-                            <button className="button button-primary" type="submit">{paid ? "Change / Activate" : "Activate"}</button>
-                          </form>
+          <div className={styles.customerList}>
+            {customers.map((customer) => {
+              const paid = customer.plan !== "free";
+              const active = customer.status === "active" || customer.status === "trialing";
 
-                          {paid ? (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                              <form action={manageCustomerSubscription} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                <input type="hidden" name="user_id" value={customer.user_id} />
-                                <input type="hidden" name="action" value="renew" />
-                                <input name="days" type="number" min="1" max="3650" defaultValue="30" aria-label="Renewal days" style={{ width: 82 }} />
-                                <button className="button button-ghost" type="submit">Renew</button>
-                              </form>
+              return (
+                <article className={styles.customerCard} key={customer.user_id}>
+                  <div className={styles.customerTop}>
+                    <div className={styles.identity}>
+                      <div className={styles.avatar} aria-hidden="true">{initials(customer.name, customer.email)}</div>
+                      <div className={styles.identityText}>
+                        <strong>{customer.name}</strong>
+                        <span>{customer.email}</span>
+                        <small>Joined {formatDate(customer.created_at)}</small>
+                      </div>
+                    </div>
 
-                              <form action={manageCustomerSubscription}>
-                                <input type="hidden" name="user_id" value={customer.user_id} />
-                                <input type="hidden" name="action" value="revoke" />
-                                <input type="hidden" name="days" value="30" />
-                                <button className="button button-ghost" type="submit" title="Immediately downgrade this customer to Free">Revoke</button>
-                              </form>
-                            </div>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    <div className={styles.badges}>
+                      <span className={styles.planBadge}>{planLabel(customer.plan)}</span>
+                      <span className={`${styles.statusBadge} ${active ? styles.statusActive : ""}`}>{customer.status}</span>
+                    </div>
+                  </div>
+
+                  <div className={styles.metaGrid}>
+                    <div className={styles.metaItem}>
+                      <span>Aliases</span>
+                      <strong>{customer.alias_count}</strong>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span>Expires</span>
+                      <strong>{formatDate(customer.current_period_end)}</strong>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span>Account ID</span>
+                      <strong title={customer.user_id}>{customer.user_id.slice(0, 8)}…</strong>
+                    </div>
+                  </div>
+
+                  <div className={styles.actionsArea}>
+                    <form action={manageCustomerSubscription} className={styles.primaryAction}>
+                      <input type="hidden" name="user_id" value={customer.user_id} />
+                      <input type="hidden" name="action" value="activate" />
+
+                      <div className={styles.control}>
+                        <label htmlFor={`plan-${customer.user_id}`}>Plan</label>
+                        <select id={`plan-${customer.user_id}`} name="plan" defaultValue={paid ? customer.plan : "starter"}>
+                          <option value="starter">Starter</option>
+                          <option value="pro">Pro</option>
+                          <option value="business">Business</option>
+                        </select>
+                      </div>
+
+                      <div className={styles.control}>
+                        <label htmlFor={`days-${customer.user_id}`}>Days</label>
+                        <input id={`days-${customer.user_id}`} name="days" type="number" min="1" max="3650" defaultValue="30" />
+                      </div>
+
+                      <button className={`button button-primary ${styles.actionButton}`} type="submit">
+                        {paid ? "Update plan" : "Activate"}
+                      </button>
+                    </form>
+
+                    {paid ? (
+                      <div className={styles.secondaryActions}>
+                        <form action={manageCustomerSubscription} className={styles.primaryAction}>
+                          <input type="hidden" name="user_id" value={customer.user_id} />
+                          <input type="hidden" name="action" value="renew" />
+                          <div className={styles.control}>
+                            <label htmlFor={`renew-${customer.user_id}`}>Renew</label>
+                            <input id={`renew-${customer.user_id}`} name="days" type="number" min="1" max="3650" defaultValue="30" />
+                          </div>
+                          <button className={`button button-ghost ${styles.actionButton}`} type="submit">Add days</button>
+                        </form>
+
+                        <form action={manageCustomerSubscription}>
+                          <input type="hidden" name="user_id" value={customer.user_id} />
+                          <input type="hidden" name="action" value="revoke" />
+                          <input type="hidden" name="days" value="30" />
+                          <button className={`button ${styles.revokeButton}`} type="submit" title="Immediately downgrade this customer to Free">Revoke</button>
+                        </form>
+                      </div>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : (
           <div className="empty-state"><div><h3>No customers yet</h3><p>Registered BatMail users will appear here.</p></div></div>
