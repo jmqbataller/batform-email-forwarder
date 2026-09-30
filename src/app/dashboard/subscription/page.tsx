@@ -1,5 +1,5 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ManualPaymentForm } from "@/components/manual-payment-form";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Subscription" };
@@ -40,8 +40,9 @@ export default async function SubscriptionPage() {
         <div>
           <span className="page-kicker">Subscription</span>
           <h1>Your plan</h1>
-          <p>Upgrade through GCash and upload your receipt for manual approval.</p>
+          <p>Review your current plan, usage, renewal, and payment approval status.</p>
         </div>
+        <Link className="button button-primary" href="/checkout?plan=starter">Upgrade plan</Link>
       </div>
 
       <div className="stats-grid">
@@ -59,10 +60,9 @@ export default async function SubscriptionPage() {
           <p>Requested plan: <strong>{latestPayment.requested_plan.charAt(0).toUpperCase() + latestPayment.requested_plan.slice(1)}</strong></p>
           {latestPayment.status === "pending" ? <p>Your current plan remains unchanged until the payment is approved.</p> : null}
           {latestPayment.admin_note ? <p>Admin note: {latestPayment.admin_note}</p> : null}
+          {latestPayment.status !== "pending" ? <Link className="button button-primary" href={`/checkout?plan=${latestPayment.requested_plan}`}>Open checkout</Link> : null}
         </section>
       ) : null}
-
-      <ManualPaymentForm userId={user.id} pendingPlan={latestPayment?.requested_plan} pendingStatus={latestPayment?.status} />
 
       <section className="panel" aria-labelledby="plans-heading">
         <div className="panel-head"><div><h2 id="plans-heading">Available plans</h2><p>Monthly Philippine Peso pricing.</p></div></div>
@@ -71,9 +71,15 @@ export default async function SubscriptionPage() {
             <div className="stat-card" key={plan.key}>
               <div className="stat-top"><span>{plan.name}</span></div>
               <strong className="stat-value">{plan.price}</strong>
-              <span className="stat-note">per month · {plan.limit} aliases</span>
+              <span className="stat-note">per month · {plan.limit.toLocaleString()} aliases</span>
               <p>{plan.description}</p>
-              <span className="stat-note">{currentPlan === plan.key ? "Current plan" : plan.key === "free" ? "Included" : "Pay via GCash above"}</span>
+              {currentPlan === plan.key ? (
+                <span className="stat-note">Current plan</span>
+              ) : plan.key === "free" ? (
+                <span className="stat-note">Included by default</span>
+              ) : (
+                <Link className="button button-ghost" href={`/checkout?plan=${plan.key}`}>Choose {plan.name}</Link>
+              )}
             </div>
           ))}
         </div>
