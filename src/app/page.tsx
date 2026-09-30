@@ -189,7 +189,7 @@ export default function Home() {
       <footer className={styles.footer}>
         <div><Logo /><p>Private email aliases for safer signups and cleaner inboxes.</p></div>
         <div className={styles.footerLinks}><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a><Link href="/login">Sign in</Link></div>
-        <span>© 2026 BatMail · batform.online</span>
+        <span>© 2026 BatMail · batform.online · Developed by <a href="https://webtayo.com/" target="_blank" rel="noopener noreferrer">WebTayo</a></span>
       </footer>
     </main>
   );
