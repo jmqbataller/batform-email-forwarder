@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { renameAlias } from "@/app/dashboard/actions";
 import { CheckIcon, PencilIcon, XIcon } from "@/components/icons";
 
-export function AliasLabelEditor({ aliasId, label }: { aliasId: string; label: string | null }) {
+export function AliasLabelEditor({ aliasId, label, canEdit }: { aliasId: string; label: string | null; canEdit: boolean }) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
@@ -16,6 +16,10 @@ export function AliasLabelEditor({ aliasId, label }: { aliasId: string; label: s
       if (result.status === "success") setEditing(false);
       else setError(result.message);
     });
+  }
+
+  if (!canEdit) {
+    return label ? <span className="alias-label-button locked"><span>{label}</span></span> : null;
   }
 
   if (!editing) {
