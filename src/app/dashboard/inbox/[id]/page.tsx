@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeftIcon, InboxIcon } from "@/components/icons";
+import { LinkifiedMessage } from "@/components/linkified-message";
 import { forwardingDomain } from "@/lib/config";
 import { createClient } from "@/lib/supabase/server";
 import type { InboxMessageDetail } from "@/lib/types";
@@ -45,7 +46,7 @@ export default async function InboxMessagePage({ params }: { params: Promise<{ i
         </dl>
         <section className="message-content" aria-labelledby="message-content-heading">
           <h2 id="message-content-heading">Message</h2>
-          {message.text_body ? <pre>{message.text_body}</pre> : <p>This earlier email was processed before in-app message storage was enabled. New incoming emails will show their full text here.</p>}
+          {message.text_body ? <LinkifiedMessage text={message.text_body} /> : <p>This earlier email was processed before in-app message storage was enabled. New incoming emails will show their full text here.</p>}
         </section>
       </article>
     </div>
