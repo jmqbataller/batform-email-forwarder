@@ -26,15 +26,17 @@ async function getAliasMutationAccess(aliasId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: alias }, { data: subscription }] = await Promise.all([
+  const [{ data: alias }, { data: subscription }, { data: isAdmin }] = await Promise.all([
     supabase.from("aliases").select("id,user_id,created_at").eq("id", aliasId).eq("user_id", user.id).maybeSingle(),
     supabase.from("user_subscriptions").select("plan,status").eq("user_id", user.id).maybeSingle(),
+    supabase.rpc("is_subscription_admin"),
   ]);
 
   const paid = Boolean(subscription && PAID_PLANS.has(subscription.plan) && ["active", "trialing"].includes(subscription.status));
   const withinWindow = Boolean(alias && Date.now() < new Date(alias.created_at).getTime() + EDIT_WINDOW_MS);
+  const admin = Boolean(isAdmin);
 
-  return { supabase, user, alias, paid, withinWindow, allowed: Boolean(alias && paid && withinWindow) };
+  return { supabase, user, alias, paid, withinWindow, admin, allowed: Boolean(alias && (admin || (paid && withinWindow))) };
 }
 
 function lockedMessage(paid: boolean, withinWindow: boolean) {
@@ -96,11 +98,7 @@ export async function renameAlias(formData: FormData): Promise<AliasActionState>
   const access = await getAliasMutationAccess(id.data);
   if (!access.allowed) return { status: "error", message: lockedMessage(access.paid, access.withinWindow) };
 
-  const { error } = await access.supabase
-    .from("aliases")
-    .update({ label: label.data })
-    .eq("id", id.data)
-    .eq("user_id", access.user.id);
+  const { error } = await access.supabase.from("aliases").update({ label: label.data }).eq("id", id.data).eq("user_id", access.user.id);
   if (error) return { status: "error", message: error.message.includes("ALIAS_EDIT_LOCKED") ? lockedMessage(access.paid, false) : "Could not update the label. Please try again." };
 
   refreshAliasViews();
@@ -115,11 +113,7 @@ export async function renameAliasAddress(formData: FormData): Promise<AliasActio
   const access = await getAliasMutationAccess(id.data);
   if (!access.allowed) return { status: "error", message: lockedMessage(access.paid, access.withinWindow) };
 
-  const { error } = await access.supabase
-    .from("aliases")
-    .update({ local_part: localPart.data })
-    .eq("id", id.data)
-    .eq("user_id", access.user.id);
+  const { error } = await access.supabase.from("aliases").update({ local_part: localPart.data }).eq("id", id.data).eq("user_id", access.user.id);
   if (error) {
     if (error.code === "23505") return { status: "error", message: "That alias address is already in use." };
     return { status: "error", message: error.message.includes("ALIAS_EDIT_LOCKED") ? lockedMessage(access.paid, false) : "Could not update the alias address. Please try again." };
