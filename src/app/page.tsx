@@ -153,18 +153,24 @@ export default function Home() {
           <p>Pricing is in Philippine pesos. Every account starts on Free, then you can upgrade when you need more aliases for more accounts, projects, or team workflows.</p>
         </div>
         <div className={styles.pricingGrid}>
-          {plans.map((plan) => (
-            <article key={plan.name} className={`${styles.planCard} ${plan.featured ? styles.featuredPlan : ""}`}>
-              {plan.featured && <span className={styles.popular}>Most popular</span>}
-              <div className={styles.planTop}><h3>{plan.name}</h3><p>{plan.description}</p></div>
-              <div className={styles.price}><strong>{plan.price}</strong><span>/month</span></div>
-              <div className={styles.aliasLimit}>{plan.aliases}</div>
-              <ul>{plan.features.map((feature) => <li key={feature}><span>✓</span>{feature}</li>)}</ul>
-              <Link className={`button ${plan.featured ? "button-primary" : "button-ghost"} ${styles.planButton}`} href={`/login?mode=signup&plan=${plan.name.toLowerCase()}`}>{plan.cta}</Link>
-            </article>
-          ))}
+          {plans.map((plan) => {
+            const paidPlan = plan.name !== "Free";
+            const planSlug = plan.name.toLowerCase();
+            const href = paidPlan ? `/checkout?plan=${planSlug}` : "/login?mode=signup";
+
+            return (
+              <article key={plan.name} className={`${styles.planCard} ${plan.featured ? styles.featuredPlan : ""}`}>
+                {plan.featured && <span className={styles.popular}>Most popular</span>}
+                <div className={styles.planTop}><h3>{plan.name}</h3><p>{plan.description}</p></div>
+                <div className={styles.price}><strong>{plan.price}</strong><span>/month</span></div>
+                <div className={styles.aliasLimit}>{plan.aliases}</div>
+                <ul>{plan.features.map((feature) => <li key={feature}><span>✓</span>{feature}</li>)}</ul>
+                <Link className={`button ${plan.featured ? "button-primary" : "button-ghost"} ${styles.planButton}`} href={href}>{plan.cta}</Link>
+              </article>
+            );
+          })}
         </div>
-        <div className={styles.billingNote}>All prices are shown in PHP. Free registration is available now. Paid checkout buttons become chargeable once the payment gateway is connected.</div>
+        <div className={styles.billingNote}>All prices are shown in PHP. Free registration goes to your dashboard. Paid plan selections continue to checkout after sign in or registration.</div>
       </section>
 
       <section className={`${styles.section} ${styles.faqSection}`} id="faq">
