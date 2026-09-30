@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -24,7 +24,15 @@ export function ManualPaymentForm({ userId, pendingPlan, pendingStatus }: Props)
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [qrSrc, setQrSrc] = useState("");
   const supabase = createClient();
+
+  useEffect(() => {
+    fetch("/gcash-payment.jpg")
+      .then((response) => response.text())
+      .then((value) => setQrSrc(value.trim()))
+      .catch(() => setQrSrc(""));
+  }, []);
 
   const amount = PLAN_PRICES[plan];
   const hasPending = pendingStatus === "pending";
@@ -107,7 +115,7 @@ export function ManualPaymentForm({ userId, pendingPlan, pendingStatus }: Props)
 
         <div className="stat-card">
           <div className="stat-top"><span>2. Scan and pay</span></div>
-          <img src="/gcash-payment.jpg" alt="GCash QR payment code" style={{ width: "100%", maxWidth: 280, margin: "0 auto", display: "block", borderRadius: 16 }} />
+          {qrSrc ? <img src={qrSrc} alt="GCash QR payment code" style={{ width: "100%", maxWidth: 280, margin: "0 auto", display: "block", borderRadius: 16 }} /> : <p>Loading payment QR…</p>}
           <span className="stat-note">GCash / InstaPay QR. Transfer fees may apply depending on your bank or wallet.</span>
         </div>
 
