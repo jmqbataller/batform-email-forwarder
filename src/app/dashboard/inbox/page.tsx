@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { InboxMessageRow } from "@/lib/types";
 
 export const metadata = { title: "Inbox" };
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const PAGE_SIZE = 150;
 
@@ -50,7 +52,6 @@ export default async function InboxPage({ searchParams }: InboxPageProps) {
 
   return (
     <div className="dashboard">
-      <InboxAutoRefresh intervalMs={5000} />
       <div className="page-head">
         <div><span className="page-kicker">Messages</span><h1>Inbox</h1><p>Read incoming mail and identify every message instantly by its alias label.</p></div>
         <div className="retention-notice"><ClockIcon /><span><strong>30-day retention</strong>Email messages are deleted automatically.</span></div>
@@ -61,7 +62,10 @@ export default async function InboxPage({ searchParams }: InboxPageProps) {
             <h2 id="inbox-heading">Incoming messages</h2>
             <p>Newest messages first · 150 messages per page · Auto-refresh every 5 seconds</p>
           </div>
-          <span>{pageStart}-{pageEnd} of {totalMessages}</span>
+          <div className="panel-head-meta">
+            <InboxAutoRefresh intervalMs={5000} />
+            <span>{pageStart}-{pageEnd} of {totalMessages}</span>
+          </div>
         </div>
         <InboxList messages={messages} />
         <nav className="inbox-pagination" aria-label="Inbox pagination">
