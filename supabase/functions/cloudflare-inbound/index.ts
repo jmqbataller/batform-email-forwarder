@@ -100,8 +100,8 @@ function maskedFrom(localPart: string) {
   return `${localPart}@${forwardingDomain}`;
 }
 
-function isDailyQuotaError(message: string) {
-  return message.toLowerCase().includes("daily email sending quota");
+function isProviderQuotaError(message: string) {
+  return message.toLowerCase().includes("email sending quota");
 }
 
 function secretsMatch(provided: string, expected: string) {
@@ -400,8 +400,8 @@ async function relayInbound(
       { idempotencyKey: `batmail-inbound/${event.id}` },
     );
     if (error) {
-      if (isDailyQuotaError(error.message)) {
-        const detail = "Masked Gmail delivery paused: Resend daily quota exhausted; message remains in BatMail.";
+      if (isProviderQuotaError(error.message)) {
+        const detail = "Masked Gmail delivery paused: Resend sending quota exhausted; message remains in BatMail.";
         const paused = await admin
           .from("email_events")
           .update({ status: "failed", error: detail })
