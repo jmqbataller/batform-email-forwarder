@@ -48,6 +48,14 @@ export function sanitizeError(error: unknown) {
     .slice(0, 500);
 }
 
+export function generateRelayLabel() {
+  const alphabet = "abcdefghijklmnopqrstuvwxyz";
+  const bytes = crypto.getRandomValues(new Uint8Array(7));
+  const letters = Array.from(bytes.slice(0, 6), (byte) => alphabet[byte % alphabet.length]).join("");
+  const number = 10 + (bytes[6] % 90);
+  return `${letters}+${number}`;
+}
+
 async function sha256Hex(value: ArrayBuffer) {
   const digest = await crypto.subtle.digest("SHA-256", value);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -159,7 +167,7 @@ export default {
         to: env.TEMP_FORWARD_TO,
         from: {
           email: `relay@${env.FORWARDING_DOMAIN}`,
-          name: "BatMail Relay",
+          name: generateRelayLabel(),
         },
         replyTo: sender,
         subject: subject || "(No subject)",
