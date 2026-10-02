@@ -416,3 +416,13 @@ svg { display: block; width: 1.1em; height: 1.1em; }
   .inbox-pagination .button { min-width: 78px; padding: 0 12px; }
   .pagination-status { font-size: 10px; }
 }
+
+
+/* Live inbox refresh status */
+.panel-head-meta { display: flex; align-items: center; gap: 12px; }
+.panel-head-meta > span:not(.inbox-live-status) { color: var(--muted); font-size: 10px; }
+.inbox-live-status { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.inbox-live-status i { width: 7px; height: 7px; border-radius: 50%; background: #1ca77f; box-shadow: 0 0 0 3px rgba(28,167,127,.11); }
+@media (max-width: 680px) {
+  .panel-head-meta > span:not(.inbox-live-status) { display: none; }
+}
