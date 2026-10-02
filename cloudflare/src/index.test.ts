@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  generateRelayLabel,
   localPartFor,
   normalizeAddress,
   sanitizeError,
@@ -21,4 +22,10 @@ test("accepts only the configured forwarding domain", () => {
 test("sanitizes stored content and operational errors", () => {
   assert.equal(toStoredText("  hello\0 world  "), "hello world");
   assert.equal(sanitizeError(new Error("line one\nline two")), "line one line two");
+});
+
+
+test("generates randomized relay labels", () => {
+  const label = generateRelayLabel();
+  assert.match(label, /^[a-z]{6}\+[1-9][0-9]$/);
 });
