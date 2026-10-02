@@ -155,11 +155,20 @@ export default {
 
       direction = "inbound";
       await message.forward(env.TEMP_FORWARD_TO);
-      await callBackend(env, {
-        action: "complete",
-        event_id: plan.eventId,
-        status: "forwarded",
-      });
+
+      try {
+        await callBackend(env, {
+          action: "complete",
+          event_id: plan.eventId,
+          status: "forwarded",
+        });
+      } catch (statusError) {
+        console.error("BatMail forward status update failed after Cloudflare delivery", {
+          detail: sanitizeError(statusError),
+          eventId: plan.eventId,
+        });
+      }
+      return;
     } catch (error) {
       const detail = sanitizeError(error);
       console.error("BatMail email processing failed", {
