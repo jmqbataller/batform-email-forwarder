@@ -5,6 +5,7 @@ compatibility_date = "2026-09-12"
 [vars]
 FORWARDING_DOMAIN = "mail.batform.online"
 SUPABASE_EDGE_URL = "https://djhgekzhjrzszdzrzwxp.supabase.co/functions/v1/cloudflare-inbound"
+TEMP_FORWARD_TO = "leejessica0469@gmail.com"
 
 [secrets]
 required = [ "BATMAIL_WORKER_SECRET" ]
