@@ -37,5 +37,5 @@ export function InboxAutoRefresh({ intervalMs = DEFAULT_INTERVAL_MS }: { interva
     };
   }, [intervalMs, router]);
 
-  return null;
+  return <span className="inbox-live-status"><i aria-hidden="true" />Live · Auto-refresh 5s</span>;
 }
