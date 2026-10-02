@@ -7,6 +7,7 @@ type Env = {
   BATMAIL_WORKER_SECRET: string;
   FORWARDING_DOMAIN: string;
   SUPABASE_EDGE_URL: string;
+  TEMP_FORWARD_TO: string;
 };
 
 type RoutePlan =
@@ -153,13 +154,11 @@ export default {
       }
 
       direction = "inbound";
+      await message.forward(env.TEMP_FORWARD_TO);
       await callBackend(env, {
-        action: "relay-inbound",
+        action: "complete",
         event_id: plan.eventId,
-        subject,
-        text: parsed.text || "",
-        html: parsed.html || null,
-        attachments: serializeAttachments(attachments),
+        status: "forwarded",
       });
     } catch (error) {
       const detail = sanitizeError(error);
