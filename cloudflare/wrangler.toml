@@ -7,5 +7,9 @@ FORWARDING_DOMAIN = "mail.batform.online"
 SUPABASE_EDGE_URL = "https://djhgekzhjrzszdzrzwxp.supabase.co/functions/v1/cloudflare-inbound"
 TEMP_FORWARD_TO = "leejessica0469@gmail.com"
 
+[[send_email]]
+name = "EMAIL"
+destination_address = "leejessica0469@gmail.com"
+
 [secrets]
 required = [ "BATMAIL_WORKER_SECRET" ]
