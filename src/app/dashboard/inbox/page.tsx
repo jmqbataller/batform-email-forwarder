@@ -8,7 +8,7 @@ import type { InboxMessageRow } from "@/lib/types";
 
 export const metadata = { title: "Inbox" };
 
-const PAGE_SIZE = 500;
+const PAGE_SIZE = 150;
 
 type InboxPageProps = {
   searchParams: Promise<{ page?: string | string[] }>;
@@ -59,7 +59,7 @@ export default async function InboxPage({ searchParams }: InboxPageProps) {
         <div className="panel-head">
           <div>
             <h2 id="inbox-heading">Incoming messages</h2>
-            <p>Newest messages first · 500 messages per page · Auto-refresh every 5 seconds</p>
+            <p>Newest messages first · 150 messages per page · Auto-refresh every 5 seconds</p>
           </div>
           <span>{pageStart}-{pageEnd} of {totalMessages}</span>
         </div>
