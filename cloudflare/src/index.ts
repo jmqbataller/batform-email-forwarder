@@ -8,6 +8,7 @@ type Env = {
   FORWARDING_DOMAIN: string;
   SUPABASE_EDGE_URL: string;
   TEMP_FORWARD_TO: string;
+  EMAIL: SendEmail;
 };
 
 type RoutePlan =
@@ -154,7 +155,22 @@ export default {
       }
 
       direction = "inbound";
-      await message.forward(env.TEMP_FORWARD_TO);
+      await env.EMAIL.send({
+        to: env.TEMP_FORWARD_TO,
+        from: {
+          email: `relay@${env.FORWARDING_DOMAIN}`,
+          name: "BatMail Relay",
+        },
+        replyTo: sender,
+        subject: subject || "(No subject)",
+        text: parsed.text || "Forwarded email received by BatMail.",
+        html: parsed.html || undefined,
+        attachments,
+        headers: {
+          "X-BatMail-Original-From": sender,
+          "X-BatMail-Original-To": normalizeAddress(message.to),
+        },
+      });
 
       try {
         await callBackend(env, {
