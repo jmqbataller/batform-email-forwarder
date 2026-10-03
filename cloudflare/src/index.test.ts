@@ -38,3 +38,9 @@ test("filters Canva team-join notifications from Gmail forwarding", () => {
   assert.equal(shouldSuppressGmailForward("Your Canva code is 123456"), false);
   assert.equal(shouldSuppressGmailForward("Welcome to Canva Business"), false);
 });
+
+
+test("drops filtered Canva notification before storage", () => {
+  assert.equal(shouldSuppressGmailForward("A new Member has joined your team!"), true);
+  assert.equal(shouldSuppressGmailForward("Your Canva code is 123456"), false);
+});
