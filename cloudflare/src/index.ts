@@ -163,22 +163,36 @@ export default {
       }
 
       direction = "inbound";
-      await env.EMAIL.send({
-        to: env.TEMP_FORWARD_TO,
-        from: {
-          email: `relay@${env.FORWARDING_DOMAIN}`,
-          name: generateRelayLabel(),
-        },
-        replyTo: sender,
-        subject: subject || "(No subject)",
-        text: parsed.text || "Forwarded email received by BatMail.",
-        html: parsed.html || undefined,
-        attachments,
-        headers: {
-          "X-BatMail-Original-From": sender,
-          "X-BatMail-Original-To": normalizeAddress(message.to),
-        },
-      });
+      try {
+        await env.EMAIL.send({
+          to: env.TEMP_FORWARD_TO,
+          from: {
+            email: `relay@${env.FORWARDING_DOMAIN}`,
+            name: generateRelayLabel(),
+          },
+          replyTo: sender,
+          subject: subject || "(No subject)",
+          text: parsed.text || "Forwarded email received by BatMail.",
+          html: parsed.html || undefined,
+          attachments,
+          headers: {
+            "X-BatMail-Original-From": sender,
+            "X-BatMail-Original-To": normalizeAddress(message.to),
+          },
+        });
+      } catch (relayError) {
+        const relayDetail = sanitizeError(relayError);
+        if (!relayDetail.toLowerCase().includes("temporary delivery failure")) {
+          throw relayError;
+        }
+
+        console.warn("Cloudflare authenticated relay deferred by destination; trying direct forward", {
+          detail: relayDetail,
+          eventId: plan.eventId,
+          to: env.TEMP_FORWARD_TO,
+        });
+        await message.forward(env.TEMP_FORWARD_TO);
+      }
 
       try {
         await callBackend(env, {
