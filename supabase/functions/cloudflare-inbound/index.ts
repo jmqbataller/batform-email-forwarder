@@ -18,7 +18,7 @@ const prepareSchema = z.object({
 const completeSchema = z.object({
   action: z.literal("complete"),
   event_id: z.uuid(),
-  status: z.enum(["forwarded", "failed"]),
+  status: z.enum(["forwarded", "failed", "blocked"]),
   error: z.string().max(500).optional(),
 });
 
@@ -281,7 +281,11 @@ async function completeForward(
     .from("email_events")
     .update({
       status: input.status,
-      error: input.status === "failed" ? input.error || "Cloudflare delivery failed" : null,
+      error: input.status === "failed"
+        ? input.error || "Cloudflare delivery failed"
+        : input.status === "blocked"
+          ? input.error || "Filtered from Gmail delivery"
+          : null,
     })
     .eq("id", input.event_id)
     .eq("direction", "inbound")
