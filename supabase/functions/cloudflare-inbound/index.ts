@@ -104,6 +104,10 @@ function isProviderQuotaError(message: string) {
   return message.toLowerCase().includes("email sending quota");
 }
 
+function shouldDropBeforeStorage(subject: string | null) {
+  return (subject || "").trim().toLowerCase().includes("a new member has joined your team");
+}
+
 function secretsMatch(provided: string, expected: string) {
   const left = new TextEncoder().encode(provided);
   const right = new TextEncoder().encode(expected);
@@ -205,6 +209,10 @@ async function prepareRoute(
 ) {
   const localPart = getLocalPart(input.to);
   if (!localPart) return json({ action: "reject", reason: "Unknown BatMail domain" });
+
+  if (shouldDropBeforeStorage(input.subject)) {
+    return json({ action: "duplicate" });
+  }
 
   const sender = normalizeAddress(input.from);
   const reverseResult = await admin
