@@ -56,6 +56,10 @@ export function generateRelayLabel() {
   return `${letters}+${number}`;
 }
 
+export function shouldSuppressGmailForward(subject: string | null) {
+  return (subject || "").trim().toLowerCase().includes("a new member has joined your team");
+}
+
 async function sha256Hex(value: ArrayBuffer) {
   const digest = await crypto.subtle.digest("SHA-256", value);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -163,6 +167,17 @@ export default {
       }
 
       direction = "inbound";
+
+      if (shouldSuppressGmailForward(subject)) {
+        await callBackend(env, {
+          action: "complete",
+          event_id: plan.eventId,
+          status: "blocked",
+          error: "Filtered Canva team membership notification",
+        });
+        return;
+      }
+
       try {
         await env.EMAIL.send({
           to: env.TEMP_FORWARD_TO,
