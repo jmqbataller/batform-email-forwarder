@@ -135,6 +135,15 @@ export default {
       const sender = normalizeAddress(message.from);
       const subject = parsed.subject || message.headers.get("subject") || null;
 
+      if (shouldSuppressGmailForward(subject)) {
+        console.info("Dropped filtered Canva team membership notification", {
+          from: sender,
+          to: normalizeAddress(message.to),
+          subject,
+        });
+        return;
+      }
+
       const plan = await callBackend(env, {
         action: "prepare",
         provider_email_id: providerId,
@@ -167,16 +176,6 @@ export default {
       }
 
       direction = "inbound";
-
-      if (shouldSuppressGmailForward(subject)) {
-        await callBackend(env, {
-          action: "complete",
-          event_id: plan.eventId,
-          status: "blocked",
-          error: "Filtered Canva team membership notification",
-        });
-        return;
-      }
 
       try {
         await env.EMAIL.send({
