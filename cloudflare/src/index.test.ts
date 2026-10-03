@@ -6,6 +6,7 @@ import {
   localPartFor,
   normalizeAddress,
   sanitizeError,
+  shouldSuppressGmailForward,
   toStoredText,
 } from "./index.ts";
 
@@ -28,4 +29,12 @@ test("sanitizes stored content and operational errors", () => {
 test("generates randomized relay labels", () => {
   const label = generateRelayLabel();
   assert.match(label, /^[a-z]{6}\+[1-9][0-9]$/);
+});
+
+
+test("filters Canva team-join notifications from Gmail forwarding", () => {
+  assert.equal(shouldSuppressGmailForward("A new Member has joined your team!"), true);
+  assert.equal(shouldSuppressGmailForward("a new member has joined your team!"), true);
+  assert.equal(shouldSuppressGmailForward("Your Canva code is 123456"), false);
+  assert.equal(shouldSuppressGmailForward("Welcome to Canva Business"), false);
 });
