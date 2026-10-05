@@ -70,8 +70,9 @@ export async function createAlias(_state: AliasActionState, formData: FormData):
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) redirect("/login");
-  const routing = await invokeRouting(supabase, { action: "status" });
+  const routing = await invokeRouting(supabase, { action: "status", check_capacity: true });
   if (!routing.connected) return { status: "error", message: routing.error || "An admin must connect Cloudflare before creating new aliases." };
+  if (routing.can_create !== true) return { status: "error", message: routing.error || "Could not verify email routing capacity. Please try again." };
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const { data: alias, error } = await supabase.from("aliases").insert({

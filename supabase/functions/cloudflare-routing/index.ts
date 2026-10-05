@@ -1,11 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { z } from "npm:zod@4.1.0";
-import { domain, ruleBody, ruleForAddress, routesToWorker, type RoutingRule } from "./rules.ts";
+import { capacityMessage, domain, hasRoutingCapacity, ruleBody, ruleForAddress, routesToWorker, type RoutingRule } from "./rules.ts";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("connect"), token: z.string().trim().min(20).max(500) }),
-  z.object({ action: z.literal("status") }),
+  z.object({ action: z.literal("status"), check_capacity: z.boolean().default(false) }),
   z.object({ action: z.literal("sync"), offset: z.number().int().min(0).max(100000).default(0) }),
   z.object({ action: z.literal("ensure"), alias_id: z.uuid() }),
   z.object({ action: z.literal("remove"), alias_id: z.uuid() }),
@@ -29,8 +29,11 @@ async function cloudflare<T>(token: string, path: string, method = "GET", body?:
   const data = await response.json();
   if (!response.ok || !data.success) {
     // Provider errors can contain submitted data. Never return or log them with credentials.
+    if (Array.isArray(data.errors) && data.errors.some((error: { code?: number }) => error.code === 2018)) {
+      throw new RoutingError(capacityMessage, 409);
+    }
     throw new RoutingError(response.status === 429
-      ? "Cloudflare rate limit reached. Wait a minute and sync again."
+      ? "Email routing is temporarily busy. Please retry later."
       : response.status === 401 || response.status === 403
         ? "Cloudflare denied access. Check the token permissions and zone scope."
         : "Cloudflare could not save the routing rule. Check Email Routing is enabled and the routing rule limit has not been reached.");
@@ -61,6 +64,7 @@ async function ensureRule(token: string, zone: string, rules: RoutingRule[], ali
     throw new RoutingError("An existing Cloudflare rule uses this address. Review that rule before syncing.", 409);
   }
   if (managed && routesToWorker(managed) && managed.matchers[0]?.value === body.matchers[0].value) return;
+  if (!managed && !hasRoutingCapacity(rules)) throw new RoutingError(capacityMessage, 409);
   const data = await cloudflare<RoutingRule>(token, `/zones/${zone}/email/routing/rules${managed ? `/${managed.id}` : ""}`, managed ? "PUT" : "POST", body);
   if (managed) rules.splice(rules.indexOf(managed), 1);
   rules.push(data.result);
@@ -103,7 +107,12 @@ Deno.serve(async (request) => {
       return json({ connected: true });
     }
     const [token, zone] = await Promise.all([secret("batmail_cloudflare_api_token"), secret("batmail_cloudflare_zone_id")]);
-    if (input.action === "status") return json({ connected: Boolean(token && zone) });
+    if (input.action === "status") {
+      const connected = Boolean(token && zone);
+      if (!connected || !input.check_capacity) return json({ connected });
+      const can_create = hasRoutingCapacity(await listRules(token!, zone!));
+      return json({ connected, can_create, ...(can_create ? {} : { error: capacityMessage }) });
+    }
     if (!token || !zone) return json({ error: "Connect Cloudflare in the admin dashboard before using new aliases." }, 409);
     const rules = await listRules(token, zone);
     if (input.action === "sync") {

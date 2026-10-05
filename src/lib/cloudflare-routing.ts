@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type RoutingResult = {
   connected?: boolean;
   ready?: boolean;
+  can_create?: boolean;
   synced?: number;
   errors?: string[];
   next_offset?: number | null;

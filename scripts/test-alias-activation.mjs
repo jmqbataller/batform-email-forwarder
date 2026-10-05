@@ -10,6 +10,7 @@ let row;
 let routingFails = false;
 let activationWriteFails = false;
 let connected = true;
+let canCreate = true;
 let refreshed = false;
 class Clock extends Date { static now() { return now; } }
 const client = {
@@ -62,7 +63,10 @@ const actions = evaluate("src/app/dashboard/actions.ts", {
   "@/lib/supabase/server": { createClient: async () => client },
   "@/lib/alias-activation": activation,
   "@/lib/cloudflare-routing": { async invokeRouting(_client, body) {
-    if (body.action === "status") return { connected };
+    if (body.action === "status") {
+      assert.equal(body.check_capacity, true);
+      return { connected, can_create: canCreate };
+    }
     assert.equal(row.enabled, true, "Only enabled aliases should be provisioned");
     assert.equal(row.routing_ready_at, null, "Copy must remain blocked while provisioning");
     now += 5000; // Setup must finish before the alias becomes usable.
@@ -106,4 +110,8 @@ connected = false;
 const prior = row;
 assert.equal((await actions.createAlias(empty, form())).status, "error");
 assert.equal(row, prior, "Disconnected routing must not create an alias");
+connected = true;
+canCreate = false;
+assert.equal((await actions.createAlias(empty, form())).status, "error");
+assert.equal(row, prior, "Full routing capacity must not create another unusable alias");
 console.log("Alias activation checks passed: immediate post-provisioning availability, legacy waits removed, reload, pause, provider failure, re-enable, rename, database failure, and disconnected routing.");

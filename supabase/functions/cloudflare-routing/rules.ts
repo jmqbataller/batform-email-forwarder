@@ -8,6 +8,13 @@ export type RoutingRule = {
 
 export const domain = "dnd.cspro.space";
 export const worker = "batform-email-forwarder";
+export const capacityMessage = "Email routing capacity is full (200 address rules). An admin must update routing before creating more aliases.";
+
+export function hasRoutingCapacity(rules: RoutingRule[]) {
+  // The default catch-all entry is included in list responses but does not use
+  // an address-rule slot, even when it is disabled.
+  return rules.filter((rule) => rule.matchers.some((matcher) => matcher.type === "literal")).length < 200;
+}
 
 export function ruleBody(alias: { id: string; local_part: string }) {
   return {

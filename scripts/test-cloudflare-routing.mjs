@@ -12,6 +12,7 @@ let rules = [];
 let writes = 0;
 let handler;
 let providerFails = false;
+let providerLimit = false;
 
 function createClient(_url, _key, options = {}) {
   const adminUser = options.global?.headers?.Authorization === "Bearer admin";
@@ -40,6 +41,7 @@ function createClient(_url, _key, options = {}) {
 }
 
 async function fetchMock(url, options) {
+  if (providerLimit) return Response.json({ success: false, errors: [{ code: 2018, message: "sensitive submitted data" }] }, { status: 429 });
   if (providerFails) return Response.json({ success: false, errors: [{ message: "sensitive submitted data" }] }, { status: 403 });
   const path = new URL(url).pathname;
   if (path === "/client/v4/zones") return Response.json({ success: true, result: [{ id: zoneId, name: "cspro.space" }] });
@@ -95,6 +97,12 @@ assert.equal((await call({ action: "ensure", alias_id: aliasId }, "admin")).stat
 assert.equal((await call({ action: "ensure", alias_id: aliasId })).body.ready, true);
 assert.equal(rules[0].matchers[0].value, "newalias@dnd.cspro.space");
 assert.equal(rules[0].actions[0].value[0], "batform-email-forwarder");
+providerLimit = true;
+const limited = await call({ action: "ensure", alias_id: aliasId });
+assert.equal(limited.status, 409);
+assert.match(limited.body.error, /capacity is full/);
+assert.doesNotMatch(limited.body.error, /Wait a minute|sensitive submitted data/);
+providerLimit = false;
 const before = writes;
 await call({ action: "ensure", alias_id: aliasId });
 assert.equal(writes, before, "Repeated provisioning must not create duplicate rules");
@@ -122,4 +130,18 @@ aliases[0].enabled = false;
 assert.equal((await call({ action: "ensure", alias_id: aliasId })).status, 409);
 await call({ action: "remove", alias_id: aliasId });
 assert.equal(rules.length, 0);
+aliases[0].enabled = true;
+rules = Array.from({ length: 200 }, (_, index) => ({ id: `full-${index}`, name: `Unrelated ${index}`, enabled: true, matchers: [{ type: "literal", field: "to", value: `other${index}@dnd.cspro.space` }], actions: [{ type: "worker", value: ["batform-email-forwarder"] }] }));
+rules.push({ id: "catch-all", enabled: false, matchers: [{ type: "all" }], actions: [{ type: "drop" }] });
+const capacity = await call({ action: "status", check_capacity: true });
+assert.equal(capacity.body.connected, true);
+assert.equal(capacity.body.can_create, false);
+const beforeFull = writes;
+assert.equal((await call({ action: "ensure", alias_id: aliasId })).status, 409);
+assert.equal(writes, beforeFull, "Full capacity must be rejected before a provider write");
+rules.pop();
+rules.pop();
+assert.equal((await call({ action: "status", check_capacity: true })).body.can_create, true);
+rules.push({ id: "catch-all", enabled: false, matchers: [{ type: "all" }], actions: [{ type: "drop" }] });
+assert.equal((await call({ action: "status", check_capacity: true })).body.can_create, true, "Catch-all must not consume an address-rule slot");
 console.log("Cloudflare routing checks passed: auth, ownership, configuration authorization, provisioning, idempotency, rename, conflict protection, sync errors, pause, and managed deletion.");
