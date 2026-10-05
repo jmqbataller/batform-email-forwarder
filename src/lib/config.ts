@@ -1,5 +1,5 @@
 export const forwardingDomain =
-  process.env.FORWARDING_DOMAIN || "mail.batform.online";
+  process.env.FORWARDING_DOMAIN || "dnd.cspro.space";
 
 export const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL || "https://aliases.batform.online";

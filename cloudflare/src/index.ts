@@ -6,6 +6,7 @@ const MAX_STORED_TEXT = 500_000;
 type Env = {
   BATMAIL_WORKER_SECRET: string;
   FORWARDING_DOMAIN: string;
+  LEGACY_FORWARDING_DOMAIN?: string;
   SUPABASE_EDGE_URL: string;
   TEMP_FORWARD_TO: string;
   EMAIL: SendEmail;
@@ -120,7 +121,12 @@ export default {
     let direction: "inbound" | "reply" | null = null;
 
     try {
-      if (!localPartFor(message.to, env.FORWARDING_DOMAIN)) {
+      const localPart =
+        localPartFor(message.to, env.FORWARDING_DOMAIN) ||
+        (env.LEGACY_FORWARDING_DOMAIN
+          ? localPartFor(message.to, env.LEGACY_FORWARDING_DOMAIN)
+          : null);
+      if (!localPart) {
         message.setReject("Unknown BatMail domain");
         return;
       }
