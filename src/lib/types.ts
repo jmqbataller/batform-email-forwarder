@@ -4,6 +4,7 @@ export type AliasRow = {
   destination: string;
   label: string | null;
   enabled: boolean;
+  routing_ready_at: string | null;
   forwarded_count: number;
   last_used_at: string | null;
   created_at: string;

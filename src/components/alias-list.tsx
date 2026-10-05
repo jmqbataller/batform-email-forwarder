@@ -7,6 +7,8 @@ import { AliasLabelEditor } from "@/components/alias-label-editor";
 import { CopyButton } from "@/components/copy-button";
 import { EyeOffIcon, MailIcon, SearchIcon } from "@/components/icons";
 import { forwardingDomain } from "@/lib/config";
+import { aliasActivation } from "@/lib/alias-activation";
+import { useClock } from "@/lib/use-clock";
 import type { AliasRow } from "@/lib/types";
 import { deleteAlias, toggleAlias } from "@/app/dashboard/actions";
 import styles from "./alias-list.module.css";
@@ -15,6 +17,7 @@ const EDIT_WINDOW_MS = 3 * 60 * 1000;
 
 export function AliasList({ aliases, searchable = false, canEditAliases = false, isAdmin = false }: { aliases: AliasRow[]; searchable?: boolean; canEditAliases?: boolean; isAdmin?: boolean }) {
   const [query, setQuery] = useState("");
+  const now = useClock();
   const deferredQuery = useDeferredValue(query);
   const filteredAliases = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
@@ -44,8 +47,9 @@ export function AliasList({ aliases, searchable = false, canEditAliases = false,
       <div className={styles.list}>
         {filteredAliases.map((alias) => {
           const address = `${alias.local_part}@${forwardingDomain}`;
-          const withinEditWindow = Date.now() < new Date(alias.created_at).getTime() + EDIT_WINDOW_MS;
+          const withinEditWindow = now > 0 && now < new Date(alias.created_at).getTime() + EDIT_WINDOW_MS;
           const canModify = isAdmin || (canEditAliases && withinEditWindow);
+          const activation = aliasActivation(alias.enabled, alias.routing_ready_at, now);
 
           return (
             <article className={styles.card} key={alias.id}>
@@ -68,9 +72,9 @@ export function AliasList({ aliases, searchable = false, canEditAliases = false,
               </div>
 
               <div className={styles.controls}>
-                <span className={`${styles.status} ${alias.enabled ? styles.statusOn : ""}`}><i className={styles.dot} />{alias.enabled ? "Active" : "Paused"}</span>
+                <span className={`${styles.status} ${activation.ready ? styles.statusOn : activation.pending ? styles.statusPending : ""}`} title={activation.pending ? "Wait for activation before using this address for registration." : undefined}><i className={styles.dot} />{activation.label}</span>
                 <div className={styles.actions}>
-                  <CopyButton value={address} />
+                  <CopyButton value={address} disabled={!activation.ready} title={activation.ready ? "Copy alias" : alias.enabled ? "Wait for activation before copying this alias" : "Enable this alias before copying"} />
                   <form action={toggleAlias}><input type="hidden" name="id" value={alias.id} /><input type="hidden" name="enabled" value={String(alias.enabled)} /><AliasActionButton kind="toggle" label={alias.enabled ? "Pause alias" : "Enable alias"} /></form>
                   {canModify ? <form action={deleteAlias}><input type="hidden" name="id" value={alias.id} /><AliasActionButton kind="delete" label="Delete alias" confirmMessage={`Delete ${address}? This cannot be undone.`} /></form> : null}
                 </div>

@@ -23,7 +23,7 @@ export function CreateAliasForm() {
         </button>
       </form>
       <span className={`action-feedback ${state.status}`} aria-live="polite">
-        {pending ? "Creating your private address…" : state.message}
+        {pending ? "Setting up your private address and email routing…" : state.message}
       </span>
     </div>
   );
