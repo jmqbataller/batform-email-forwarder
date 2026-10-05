@@ -65,7 +65,7 @@ const actions = evaluate("src/app/dashboard/actions.ts", {
     if (body.action === "status") return { connected };
     assert.equal(row.enabled, true, "Only enabled aliases should be provisioned");
     assert.equal(row.routing_ready_at, null, "Copy must remain blocked while provisioning");
-    now += 5000; // Provider setup must finish before the activation clock starts.
+    now += 5000; // Setup must finish before the alias becomes usable.
     return routingFails ? { error: "Provider unavailable" } : { ready: true };
   } },
 });
@@ -74,15 +74,14 @@ const form = (values = {}) => { const data = new FormData(); Object.entries(valu
 
 assert.equal((await actions.createAlias(empty, form())).status, "success");
 assert.ok(refreshed);
-assert.equal(Date.parse(row.routing_ready_at) - now, 120000);
-assert.equal(activation.aliasActivation(true, row.routing_ready_at, now).ready, false);
-assert.equal(activation.aliasActivation(true, row.routing_ready_at, now + 119999).ready, false);
-assert.equal(activation.aliasActivation(true, row.routing_ready_at, now + 120000).ready, true);
-assert.equal(activation.aliasActivation(true, null, now).ready, false);
-assert.equal(activation.aliasActivation(false, row.routing_ready_at, now + 120000).ready, false);
-assert.equal(activation.aliasActivation(true, row.routing_ready_at, 0).ready, false);
-const savedDeadline = row.routing_ready_at;
-assert.equal(activation.aliasActivation(true, savedDeadline, now + 60000).label, "Activating 1:00", "Reloads use the same stored deadline");
+assert.equal(Date.parse(row.routing_ready_at), now, "No artificial delay after successful provisioning");
+assert.equal(activation.aliasActivation(true, row.routing_ready_at).ready, true);
+assert.equal(activation.aliasActivation(true, null).ready, false);
+assert.equal(activation.aliasActivation(true, "invalid").ready, false);
+assert.equal(activation.aliasActivation(false, row.routing_ready_at).ready, false);
+assert.equal(activation.aliasActivation(true, new Date(now + 120000).toISOString()).ready, true, "Previously provisioned aliases no longer wait on legacy deadlines");
+const savedTimestamp = row.routing_ready_at;
+assert.equal(activation.aliasActivation(true, savedTimestamp).label, "Active", "Reloads preserve readiness");
 
 routingFails = true;
 assert.equal((await actions.createAlias(empty, form())).status, "error");
@@ -94,7 +93,7 @@ assert.equal(row.enabled, false, "Failed re-enabling must return the alias to pa
 routingFails = false;
 await actions.toggleAlias(form({ id, enabled: "false" }));
 assert.equal(row.enabled, true);
-assert.equal(Date.parse(row.routing_ready_at) - now, 120000);
+assert.equal(Date.parse(row.routing_ready_at), now);
 routingFails = true;
 assert.equal((await actions.renameAliasAddress(form({ id, local_part: "renamed123" }))).status, "error");
 assert.equal(row.enabled, false, "A failed address change must not appear active");
@@ -107,4 +106,4 @@ connected = false;
 const prior = row;
 assert.equal((await actions.createAlias(empty, form())).status, "error");
 assert.equal(row, prior, "Disconnected routing must not create an alias");
-console.log("Alias activation checks passed: post-provisioning deadline, countdown, reload, pause, provider failure, re-enable, rename, database failure, and disconnected routing.");
+console.log("Alias activation checks passed: immediate post-provisioning availability, legacy waits removed, reload, pause, provider failure, re-enable, rename, database failure, and disconnected routing.");

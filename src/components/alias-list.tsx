@@ -49,7 +49,7 @@ export function AliasList({ aliases, searchable = false, canEditAliases = false,
           const address = `${alias.local_part}@${forwardingDomain}`;
           const withinEditWindow = now > 0 && now < new Date(alias.created_at).getTime() + EDIT_WINDOW_MS;
           const canModify = isAdmin || (canEditAliases && withinEditWindow);
-          const activation = aliasActivation(alias.enabled, alias.routing_ready_at, now);
+          const activation = aliasActivation(alias.enabled, alias.routing_ready_at);
 
           return (
             <article className={styles.card} key={alias.id}>
@@ -72,9 +72,9 @@ export function AliasList({ aliases, searchable = false, canEditAliases = false,
               </div>
 
               <div className={styles.controls}>
-                <span className={`${styles.status} ${activation.ready ? styles.statusOn : activation.pending ? styles.statusPending : ""}`} title={activation.pending ? "Wait for activation before using this address for registration." : undefined}><i className={styles.dot} />{activation.label}</span>
+                <span className={`${styles.status} ${activation.ready ? styles.statusOn : activation.pending ? styles.statusPending : ""}`} title={activation.pending ? "Email routing setup must finish before using this address." : undefined}><i className={styles.dot} />{activation.label}</span>
                 <div className={styles.actions}>
-                  <CopyButton value={address} disabled={!activation.ready} title={activation.ready ? "Copy alias" : alias.enabled ? "Wait for activation before copying this alias" : "Enable this alias before copying"} />
+                  <CopyButton value={address} disabled={!activation.ready} title={activation.ready ? "Copy alias" : alias.enabled ? "Email routing setup is not complete" : "Enable this alias before copying"} />
                   <form action={toggleAlias}><input type="hidden" name="id" value={alias.id} /><input type="hidden" name="enabled" value={String(alias.enabled)} /><AliasActionButton kind="toggle" label={alias.enabled ? "Pause alias" : "Enable alias"} /></form>
                   {canModify ? <form action={deleteAlias}><input type="hidden" name="id" value={alias.id} /><AliasActionButton kind="delete" label="Delete alias" confirmMessage={`Delete ${address}? This cannot be undone.`} /></form> : null}
                 </div>

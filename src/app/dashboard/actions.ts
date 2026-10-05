@@ -6,7 +6,6 @@ import { z } from "zod";
 import { randomToken } from "@/lib/random";
 import { createClient } from "@/lib/supabase/server";
 import { invokeRouting } from "@/lib/cloudflare-routing";
-import { ALIAS_ACTIVATION_MS } from "@/lib/alias-activation";
 
 export type AliasActionState = {
   status: "idle" | "success" | "error";
@@ -27,7 +26,7 @@ async function activateAlias(supabase: Awaited<ReturnType<typeof createClient>>,
   const route = await invokeRouting(supabase, { action: "ensure", alias_id: aliasId });
   if (route.ready) {
     const { data, error } = await supabase.from("aliases").update({
-      routing_ready_at: new Date(Date.now() + ALIAS_ACTIVATION_MS).toISOString(),
+      routing_ready_at: new Date(Date.now()).toISOString(),
     }).eq("id", aliasId).eq("user_id", userId).eq("enabled", true).select("id").maybeSingle();
     if (!error && data) return { ready: true };
   }
@@ -85,7 +84,7 @@ export async function createAlias(_state: AliasActionState, formData: FormData):
       const route = await activateAlias(supabase, alias.id, user.id);
       refreshAliasViews();
       if (!route.ready) return { status: "error", message: `Alias activation failed. ${route.error}` };
-      return { status: "success", message: "Alias created. Wait for the 2-minute activation countdown to finish before using it for registration." };
+      return { status: "success", message: "Alias created. Email routing is set up; you can copy and use your address now." };
     }
     if (error.message?.includes("ALIAS_QUOTA_REACHED")) {
       return { status: "error", message: "You reached your plan's alias limit. Upgrade your subscription to create more aliases." };
@@ -146,7 +145,7 @@ export async function renameAliasAddress(formData: FormData): Promise<AliasActio
   const route = await activateAlias(access.supabase, id.data, access.user.id);
   refreshAliasViews();
   if (!route.ready) return { status: "error", message: `Address saved. ${route.error}` };
-  return { status: "success", message: "Address updated. Wait for activation to finish before using it." };
+  return { status: "success", message: "Address updated. Email routing is set up; you can use it now." };
 }
 
 export async function deleteAlias(formData: FormData): Promise<void> {
