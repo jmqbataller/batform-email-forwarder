@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeftIcon, InboxIcon } from "@/components/icons";
 import { LinkifiedMessage } from "@/components/linkified-message";
-import { forwardingDomain } from "@/lib/config";
+import { aliasAddress as formatAliasAddress } from "@/lib/config";
 import { createClient } from "@/lib/supabase/server";
 import type { InboxMessageDetail } from "@/lib/types";
 
@@ -21,14 +21,14 @@ export default async function InboxMessagePage({ params }: { params: Promise<{ i
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("email_events")
-    .select("id,direction,original_from,original_to,masked_sender,subject,text_body,status,created_at,aliases!inner(local_part,label)")
+    .select("id,direction,original_from,original_to,masked_sender,subject,text_body,status,created_at,aliases!inner(local_part,domain,label)")
     .eq("id", id)
     .eq("direction", "inbound")
     .maybeSingle();
   if (error || !data) notFound();
   const message = data as unknown as InboxMessageDetail;
   const label = message.aliases.label || "Unlabeled";
-  const aliasAddress = `${message.aliases.local_part}@${forwardingDomain}`;
+  const aliasAddress = formatAliasAddress(message.aliases);
 
   return (
     <div className="dashboard message-dashboard">

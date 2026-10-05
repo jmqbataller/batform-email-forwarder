@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { ArrowRightIcon, InboxIcon, SearchIcon } from "@/components/icons";
-import { forwardingDomain } from "@/lib/config";
+import { aliasAddress as formatAliasAddress } from "@/lib/config";
 import { createClient } from "@/lib/supabase/client";
 import type { InboxMessageRow } from "@/lib/types";
 
@@ -42,13 +42,15 @@ export function InboxList({ messages, totalMessages, pageSize }: InboxListProps)
   const [loadedMessages, setLoadedMessages] = useState(messages);
   const [knownTotal, setKnownTotal] = useState(totalMessages);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [incomingSnapshot, setIncomingSnapshot] = useState({ messages, totalMessages });
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const deferredQuery = useDeferredValue(query);
 
-  useEffect(() => {
+  if (incomingSnapshot.messages !== messages || incomingSnapshot.totalMessages !== totalMessages) {
+    setIncomingSnapshot({ messages, totalMessages });
     setLoadedMessages((current) => mergeUnique(current, messages));
     setKnownTotal(totalMessages);
-  }, [messages, totalMessages]);
+  }
 
   const loadMore = useCallback(async () => {
     if (isLoadingMore || loadedMessages.length >= knownTotal) return;
@@ -61,7 +63,7 @@ export function InboxList({ messages, totalMessages, pageSize }: InboxListProps)
 
       const { data, error, count } = await supabase
         .from("email_events")
-        .select("id,original_from,subject,status,created_at,aliases!inner(local_part,label)", { count: "exact" })
+        .select("id,original_from,subject,status,created_at,aliases!inner(local_part,domain,label)", { count: "exact" })
         .eq("direction", "inbound")
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
@@ -100,7 +102,7 @@ export function InboxList({ messages, totalMessages, pageSize }: InboxListProps)
     if (!normalizedQuery) return loadedMessages;
 
     return loadedMessages.filter((message) => {
-      const aliasAddress = `${message.aliases.local_part}@${forwardingDomain}`;
+      const aliasAddress = formatAliasAddress(message.aliases);
       return [message.aliases.label, aliasAddress, message.subject, message.original_from]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(normalizedQuery));
@@ -148,7 +150,7 @@ export function InboxList({ messages, totalMessages, pageSize }: InboxListProps)
           <div className="inbox-list" style={{ opacity: isUpdating ? 0.65 : 1 }}>
             {filteredMessages.map((message) => {
               const label = message.aliases.label || "Unlabeled";
-              const aliasAddress = `${message.aliases.local_part}@${forwardingDomain}`;
+              const aliasAddress = formatAliasAddress(message.aliases);
 
               return (
                 <Link

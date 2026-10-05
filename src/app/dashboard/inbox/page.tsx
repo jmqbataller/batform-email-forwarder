@@ -14,7 +14,7 @@ export default async function InboxPage() {
   const supabase = await createClient();
   const { data, error, count } = await supabase
     .from("email_events")
-    .select("id,original_from,subject,status,created_at,aliases!inner(local_part,label)", { count: "exact" })
+    .select("id,original_from,subject,status,created_at,aliases!inner(local_part,domain,label)", { count: "exact" })
     .eq("direction", "inbound")
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })

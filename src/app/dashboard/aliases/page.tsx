@@ -1,6 +1,5 @@
 import { AliasList } from "@/components/alias-list";
 import { CreateAliasForm } from "@/components/create-alias-form";
-import { forwardingDomain } from "@/lib/config";
 import { createClient } from "@/lib/supabase/server";
 import type { AliasRow } from "@/lib/types";
 
@@ -23,7 +22,7 @@ export default async function AliasesPage() {
         <CreateAliasForm />
       </div>
       <section className="panel" aria-labelledby="all-aliases-heading">
-        <div className="panel-head"><div><h2 id="all-aliases-heading">All aliases</h2><p>Search by label, address, or destination</p></div><span>{aliases.length} on {forwardingDomain}</span></div>
+        <div className="panel-head"><div><h2 id="all-aliases-heading">All aliases</h2><p>Search by label, address, or destination</p></div><span>{aliases.length} aliases</span></div>
         <AliasList aliases={aliases} searchable canEditAliases={canEditAliases} isAdmin={Boolean(isAdmin)} />
       </section>
     </div>

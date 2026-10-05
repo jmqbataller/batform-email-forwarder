@@ -1,5 +1,9 @@
-export const forwardingDomain =
-  process.env.FORWARDING_DOMAIN || "dnd.cspro.space";
+export const forwardingDomain = "cspro.space";
+export const legacyAliasDomain = "dnd.cspro.space";
+
+export function aliasAddress(alias: { local_part: string; domain?: string }) {
+  return `${alias.local_part}@${alias.domain || legacyAliasDomain}`;
+}
 
 export const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL || "https://aliases.batform.online";

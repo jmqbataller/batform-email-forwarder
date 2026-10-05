@@ -6,7 +6,9 @@ const MAX_STORED_TEXT = 500_000;
 type Env = {
   BATMAIL_WORKER_SECRET: string;
   FORWARDING_DOMAIN: string;
+  RELAY_DOMAIN?: string;
   LEGACY_FORWARDING_DOMAIN?: string;
+  LEGACY_FORWARDING_DOMAINS?: string;
   SUPABASE_EDGE_URL: string;
   TEMP_FORWARD_TO: string;
   EMAIL: SendEmail;
@@ -36,6 +38,16 @@ export function localPartFor(value: string, domain: string) {
   const at = address.lastIndexOf("@");
   if (at < 1 || address.slice(at + 1) !== domain.toLowerCase()) return null;
   return address.slice(0, at);
+}
+
+export function acceptedLocalPart(value: string, env: Pick<Env, "FORWARDING_DOMAIN" | "LEGACY_FORWARDING_DOMAIN" | "LEGACY_FORWARDING_DOMAINS">) {
+  const domains = new Set([env.FORWARDING_DOMAIN, "cspro.space", "dnd.cspro.space", "mail.batform.online", env.LEGACY_FORWARDING_DOMAIN, ...(env.LEGACY_FORWARDING_DOMAINS || "").split(",")]);
+  for (const domain of domains) {
+    if (!domain?.trim()) continue;
+    const localPart = localPartFor(value, domain.trim());
+    if (localPart) return localPart;
+  }
+  return null;
 }
 
 export function toStoredText(value: string | undefined) {
@@ -121,11 +133,7 @@ export default {
     let direction: "inbound" | "reply" | null = null;
 
     try {
-      const localPart =
-        localPartFor(message.to, env.FORWARDING_DOMAIN) ||
-        (env.LEGACY_FORWARDING_DOMAIN
-          ? localPartFor(message.to, env.LEGACY_FORWARDING_DOMAIN)
-          : null);
+      const localPart = acceptedLocalPart(message.to, env);
       if (!localPart) {
         message.setReject("Unknown BatMail domain");
         return;
@@ -187,7 +195,7 @@ export default {
         await env.EMAIL.send({
           to: env.TEMP_FORWARD_TO,
           from: {
-            email: `relay@${env.FORWARDING_DOMAIN}`,
+            email: `relay@${env.RELAY_DOMAIN || env.FORWARDING_DOMAIN}`,
             name: generateRelayLabel(),
           },
           replyTo: sender,

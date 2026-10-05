@@ -61,10 +61,12 @@ const actions = evaluate("src/app/dashboard/actions.ts", {
   zod: { z },
   "@/lib/random": { randomToken: () => "random1234" },
   "@/lib/supabase/server": { createClient: async () => client },
+  "@/lib/config": { forwardingDomain: "cspro.space" },
   "@/lib/alias-activation": activation,
   "@/lib/cloudflare-routing": { async invokeRouting(_client, body) {
     if (body.action === "status") {
       assert.equal(body.check_capacity, true);
+      assert.equal(body.domain, "cspro.space");
       return { connected, can_create: canCreate };
     }
     assert.equal(row.enabled, true, "Only enabled aliases should be provisioned");
@@ -77,6 +79,7 @@ const empty = { status: "idle", message: "" };
 const form = (values = {}) => { const data = new FormData(); Object.entries(values).forEach(([key, value]) => data.set(key, value)); return data; };
 
 assert.equal((await actions.createAlias(empty, form())).status, "success");
+assert.equal(row.domain, "cspro.space", "New aliases must use the apex domain");
 assert.ok(refreshed);
 assert.equal(Date.parse(row.routing_ready_at), now, "No artificial delay after successful provisioning");
 assert.equal(activation.aliasActivation(true, row.routing_ready_at).ready, true);

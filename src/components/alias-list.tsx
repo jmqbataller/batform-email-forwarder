@@ -6,7 +6,7 @@ import { AliasAddressEditor } from "@/components/alias-address-editor";
 import { AliasLabelEditor } from "@/components/alias-label-editor";
 import { CopyButton } from "@/components/copy-button";
 import { EyeOffIcon, MailIcon, SearchIcon } from "@/components/icons";
-import { forwardingDomain } from "@/lib/config";
+import { aliasAddress, legacyAliasDomain } from "@/lib/config";
 import { aliasActivation } from "@/lib/alias-activation";
 import { useClock } from "@/lib/use-clock";
 import type { AliasRow } from "@/lib/types";
@@ -23,7 +23,7 @@ export function AliasList({ aliases, searchable = false, canEditAliases = false,
     const normalizedQuery = deferredQuery.trim().toLowerCase();
     if (!normalizedQuery) return aliases;
     return aliases.filter((alias) => {
-      const address = `${alias.local_part}@${forwardingDomain}`;
+      const address = aliasAddress(alias);
       return [alias.label, address, alias.destination].filter(Boolean).some((value) => value!.toLowerCase().includes(normalizedQuery));
     });
   }, [aliases, deferredQuery]);
@@ -46,7 +46,7 @@ export function AliasList({ aliases, searchable = false, canEditAliases = false,
 
       <div className={styles.list}>
         {filteredAliases.map((alias) => {
-          const address = `${alias.local_part}@${forwardingDomain}`;
+          const address = aliasAddress(alias);
           const withinEditWindow = now > 0 && now < new Date(alias.created_at).getTime() + EDIT_WINDOW_MS;
           const canModify = isAdmin || (canEditAliases && withinEditWindow);
           const activation = aliasActivation(alias.enabled, alias.routing_ready_at);
@@ -56,7 +56,7 @@ export function AliasList({ aliases, searchable = false, canEditAliases = false,
               <div className={styles.identity}>
                 <span className={styles.icon}><MailIcon /></span>
                 <div className={styles.details}>
-                  <div className={styles.addressWrap}><AliasAddressEditor aliasId={alias.id} localPart={alias.local_part} canEdit={canModify} /></div>
+                  <div className={styles.addressWrap}><AliasAddressEditor aliasId={alias.id} localPart={alias.local_part} domain={alias.domain || legacyAliasDomain} canEdit={canModify} /></div>
                   <AliasLabelEditor aliasId={alias.id} label={alias.label} canEdit={canModify} />
                   <div className={styles.metaRow}>
                     {isAdmin ? <><span className={styles.badge}>Admin</span><span className={`${styles.badge} ${styles.mutedBadge}`}>Unlimited</span></> : null}

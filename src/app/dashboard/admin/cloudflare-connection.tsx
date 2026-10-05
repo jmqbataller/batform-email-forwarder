@@ -44,7 +44,7 @@ export function CloudflareConnection({ initiallyConnected }: { initiallyConnecte
 
   return (
     <section className="panel" aria-labelledby="cloudflare-heading">
-      <div className="panel-head"><div><h2 id="cloudflare-heading">Email routing</h2><p>Connect Cloudflare once to activate existing and new aliases at dnd.cspro.space.</p></div><span>{connected ? "Connected" : "Setup required"}</span></div>
+      <div className="panel-head"><div><h2 id="cloudflare-heading">Email routing</h2><p>New aliases use cspro.space. Existing dnd.cspro.space aliases keep their addresses.</p></div><span>{connected ? "Connected" : "Setup required"}</span></div>
       <div style={{ padding: 20 }}>
         <p>Create a custom token with Zone → Zone → Read and Zone → Email Routing Rules → Edit, limited to cspro.space.</p>
         <p><a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer">Create Cloudflare token</a>. The token is stored encrypted and is never displayed after saving.</p>

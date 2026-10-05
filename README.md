@@ -1,23 +1,23 @@
 # BatMail
 
-## Cloudflare connection for dnd.cspro.space
+## Cloudflare routing for cspro.space
 
-The current forwarding domain is `dnd.cspro.space`; `mail.batform.online` remains accepted as a legacy inbound domain.
-Cloudflare does not support catch-all routing on subdomains. BatMail therefore provisions a literal routing rule for each generated alias.
+New random aliases use `cspro.space` through one apex catch-all rule pointing to the `batform-email-forwarder` Worker. Existing aliases retain `dnd.cspro.space`; their literal rules remain in place. `mail.batform.online` remains accepted for existing legacy aliases.
 
-1. Apply `20261005105026_cloudflare_routing_connection.sql` and deploy `supabase/functions/cloudflare-routing/index.ts` with JWT verification enabled.
-2. Create a Cloudflare custom API token with **Zone / Zone / Read** and **Zone / Email Routing Rules / Edit**, scoped to **cspro.space** only.
-3. Open the BatMail admin dashboard, enter the token under **Email routing**, and select **Connect Cloudflare**. The token and discovered zone ID are stored encrypted in Supabase Vault, never in GitHub or browser-visible responses.
-4. The connection form syncs existing active aliases in batches. Review all reported failures; a stored alias is not necessarily a routed alias.
-5. Creating or renaming an alias calls the routing function before reporting readiness. Enabling an alias also ensures its route exists. Deletion removes only rules managed by this integration. Admins can retry failed provisioning with **Sync existing aliases**.
+1. Apply the routing connection, activation, and `20261005134000_alias_domains.sql` migrations. The domain migration preserves existing addresses and defaults new rows to `cspro.space`.
+2. Use a Cloudflare token with **Zone / Zone / Read** and **Zone / Email Routing Rules / Edit**, scoped to **cspro.space**. Store the connection through the admin dashboard; credentials stay encrypted in Supabase Vault.
+3. Ensure apex MX/SPF records point to Cloudflare, then enable the apex catch-all with the **Send to a Worker** action targeting `batform-email-forwarder`.
+4. Deploy `cloudflare-inbound` with its worker-secret authentication and `cloudflare-routing` with JWT verification. The Cloudflare Worker accepts the apex and existing domains.
+5. New aliases become usable after successful catch-all verification, with no fixed countdown and no per-address rule writes. Paused, deleted, unknown, or wrong-domain addresses are rejected by the database-backed handler. Creating an alias still respects its subscription quota.
+6. Legacy alias edits/enabling continue to ensure literal routes. Deleting an apex alias never removes the shared catch-all. Admin sync processes both domain types.
 
-Cloudflare routing rule quotas still apply. If the quota is reached, provisioning reports a failure; request a higher quota or move to an apex-domain catch-all setup before growing beyond it.
-Only admins can configure the token or sync all customers. Individual users may provision only their own aliases. The credential setter RPC is service-role-only.
+Each alias stores its domain so labels, copied addresses, inbox rows, and message details remain correct after the transition. The established `dnd.cspro.space` relay sender remains configured for Gmail delivery.
+Only admins can configure the token or sync customers. Individual users may manage only their own aliases. Domain changes are immutable to authenticated users.
 
-Run the mocked provider and authorization checks with `node scripts/test-cloudflare-routing.mjs`.
+Run checks with `node scripts/test-cloudflare-routing.mjs`, `node scripts/test-alias-activation.mjs`, and `node scripts/test-mail-domains.mjs`, plus the Worker checks in `cloudflare`.
 
 BatMail is a private email-alias service for `batform.online`. It generates
-random addresses at `mail.batform.online`, forwards their messages to the
+random addresses at `cspro.space`, forwards their messages to the
 owner's verified inbox, and relays replies without exposing that inbox address
 to the original sender.
 
@@ -32,7 +32,7 @@ to the original sender.
 The email-processing path is independent of Vercel:
 
 ```text
-sender -> random@mail.batform.online -> Cloudflare Email Worker
+sender -> random@cspro.space -> Cloudflare Email Worker
                                           |
                                           v
                                   Supabase routing API
@@ -42,7 +42,7 @@ sender -> random@mail.batform.online -> Cloudflare Email Worker
                                           v
                                Resend -> owner inbox
 
-owner reply -> reply-token@mail.batform.online -> Cloudflare Worker
+owner reply -> reply-token@cspro.space -> Cloudflare Worker
                                                    |
                                                    v
                                          Supabase + Resend -> sender

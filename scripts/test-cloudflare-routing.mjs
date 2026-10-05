@@ -13,6 +13,8 @@ let writes = 0;
 let handler;
 let providerFails = false;
 let providerLimit = false;
+let catchAll = { id: "catch-all", enabled: true, matchers: [{ type: "all" }], actions: [{ type: "worker", value: ["batform-email-forwarder"] }] };
+let lists = 0;
 
 function createClient(_url, _key, options = {}) {
   const adminUser = options.global?.headers?.Authorization === "Bearer admin";
@@ -29,12 +31,15 @@ function createClient(_url, _key, options = {}) {
     },
     from() {
       let filtered = [...aliases];
+      let updated;
       return {
+        update(values) { updated = values; return this; },
         select() { return this; },
         eq(key, value) { filtered = filtered.filter((row) => row[key] === value); return this; },
         order() { return this; },
         async range(start, end) { return { data: filtered.slice(start, end + 1) }; },
         async maybeSingle() { return { data: filtered[0] || null }; },
+        then(resolve, reject) { if (updated) filtered.forEach((alias) => Object.assign(alias, updated)); return Promise.resolve({ data: filtered }).then(resolve, reject); },
       };
     },
   };
@@ -45,7 +50,9 @@ async function fetchMock(url, options) {
   if (providerFails) return Response.json({ success: false, errors: [{ message: "sensitive submitted data" }] }, { status: 403 });
   const path = new URL(url).pathname;
   if (path === "/client/v4/zones") return Response.json({ success: true, result: [{ id: zoneId, name: "cspro.space" }] });
+  if (path.endsWith("/catch_all")) return Response.json({ success: true, result: structuredClone(catchAll) });
   if (options.method === "GET") {
+    lists++;
     const page = Number(new URL(url).searchParams.get("page") || 1);
     return Response.json({ success: true, result: structuredClone(rules.slice((page - 1) * 50, page * 50)), result_info: { total_count: rules.length, per_page: 50 } });
   }
@@ -144,4 +151,20 @@ rules.pop();
 assert.equal((await call({ action: "status", check_capacity: true })).body.can_create, true);
 rules.push({ id: "catch-all", enabled: false, matchers: [{ type: "all" }], actions: [{ type: "drop" }] });
 assert.equal((await call({ action: "status", check_capacity: true })).body.can_create, true, "Catch-all must not consume an address-rule slot");
+aliases[0].domain = "cspro.space";
+const beforeApex = writes;
+const beforeApexLists = lists;
+assert.equal((await call({ action: "status", check_capacity: true, domain: "cspro.space" })).body.can_create, true);
+assert.equal((await call({ action: "ensure", alias_id: aliasId })).body.ready, true);
+aliases[0].local_part = "anotherandom";
+assert.equal((await call({ action: "ensure", alias_id: aliasId })).body.ready, true);
+assert.equal((await call({ action: "remove", alias_id: aliasId })).body.ready, true);
+assert.equal(writes, beforeApex, "Creating, renaming, or deleting apex aliases must never write or delete per-address routing rules");
+assert.equal(lists, beforeApexLists, "Apex aliases must not scan hundreds of legacy rules");
+catchAll.enabled = false;
+assert.equal((await call({ action: "status", check_capacity: true, domain: "cspro.space" })).status, 409);
+assert.equal((await call({ action: "ensure", alias_id: aliasId })).status, 409);
+catchAll.enabled = true;
+catchAll.actions = [{ type: "forward", value: ["other@example.com"] }];
+assert.equal((await call({ action: "ensure", alias_id: aliasId })).status, 409, "A catch-all that forwards elsewhere must not be accepted");
 console.log("Cloudflare routing checks passed: auth, ownership, configuration authorization, provisioning, idempotency, rename, conflict protection, sync errors, pause, and managed deletion.");

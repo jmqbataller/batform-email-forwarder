@@ -29,6 +29,7 @@ type Alias = {
   id: string;
   user_id: string;
   local_part: string;
+  domain: string;
   destination: string;
   enabled: boolean;
 };
@@ -292,7 +293,7 @@ Deno.serve(async (request) => {
     stage = "alias-lookup";
     const reverseResult = await admin
       .from("reverse_aliases")
-      .select("id, token, sender_email, alias_id, aliases!inner(id,user_id,local_part,destination,enabled)")
+      .select("id, token, sender_email, alias_id, aliases!inner(id,user_id,local_part,domain,destination,enabled)")
       .in("token", recipientParts)
       .limit(1)
       .maybeSingle();
@@ -300,7 +301,7 @@ Deno.serve(async (request) => {
     if (reverseResult.data) {
       const reverse = reverseResult.data as unknown as ReverseAlias;
       const alias = reverse.aliases;
-      if (!alias.enabled || sender.email !== alias.destination.toLowerCase()) {
+      if (!alias.enabled || alias.domain !== forwardingDomain || sender.email !== alias.destination.toLowerCase()) {
         return Response.json({ accepted: true, blocked: true });
       }
 
@@ -341,8 +342,9 @@ Deno.serve(async (request) => {
     stage = "alias-lookup";
     const aliasResult = await admin
       .from("aliases")
-      .select("id,user_id,local_part,destination,enabled")
+      .select("id,user_id,local_part,domain,destination,enabled")
       .in("local_part", recipientParts)
+      .eq("domain", forwardingDomain)
       .eq("enabled", true)
       .limit(1)
       .maybeSingle();

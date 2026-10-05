@@ -1,11 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { z } from "npm:zod@4.1.0";
-import { capacityMessage, domain, hasRoutingCapacity, ruleBody, ruleForAddress, routesToWorker, type RoutingRule } from "./rules.ts";
+import { capacityMessage, catchAllReady, domain, hasRoutingCapacity, primaryDomain, ruleBody, ruleForAddress, routesToWorker, type RoutingRule } from "./rules.ts";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("connect"), token: z.string().trim().min(20).max(500) }),
-  z.object({ action: z.literal("status"), check_capacity: z.boolean().default(false) }),
+  z.object({ action: z.literal("status"), check_capacity: z.boolean().default(false), domain: z.enum([primaryDomain, domain]).default(domain) }),
   z.object({ action: z.literal("sync"), offset: z.number().int().min(0).max(100000).default(0) }),
   z.object({ action: z.literal("ensure"), alias_id: z.uuid() }),
   z.object({ action: z.literal("remove"), alias_id: z.uuid() }),
@@ -55,9 +55,9 @@ async function listRules(token: string, zone: string) {
   throw new RoutingError("Too many Cloudflare routing rules to reconcile safely.");
 }
 
-async function ensureRule(token: string, zone: string, rules: RoutingRule[], alias: { id: string; local_part: string }) {
+async function ensureRule(token: string, zone: string, rules: RoutingRule[], alias: { id: string; local_part: string; domain?: string }) {
   const body = ruleBody(alias);
-  const existing = ruleForAddress(rules, `${alias.local_part}@${domain}`);
+  const existing = ruleForAddress(rules, `${alias.local_part}@${alias.domain || domain}`);
   const managed = rules.find((rule) => rule.name === body.name);
   if (existing && existing.id !== managed?.id) {
     if (routesToWorker(existing)) return;
@@ -68,6 +68,11 @@ async function ensureRule(token: string, zone: string, rules: RoutingRule[], ali
   const data = await cloudflare<RoutingRule>(token, `/zones/${zone}/email/routing/rules${managed ? `/${managed.id}` : ""}`, managed ? "PUT" : "POST", body);
   if (managed) rules.splice(rules.indexOf(managed), 1);
   rules.push(data.result);
+}
+
+async function requireCatchAll(token: string, zone: string) {
+  const { result } = await cloudflare<RoutingRule>(token, `/zones/${zone}/email/routing/rules/catch_all`);
+  if (!catchAllReady(result)) throw new RoutingError("An admin must activate the cspro.space catch-all for the BatMail Worker before using new aliases.", 409);
 }
 
 Deno.serve(async (request) => {
@@ -110,25 +115,46 @@ Deno.serve(async (request) => {
     if (input.action === "status") {
       const connected = Boolean(token && zone);
       if (!connected || !input.check_capacity) return json({ connected });
+      if (input.domain === primaryDomain) {
+        await requireCatchAll(token!, zone!);
+        return json({ connected, can_create: true });
+      }
       const can_create = hasRoutingCapacity(await listRules(token!, zone!));
       return json({ connected, can_create, ...(can_create ? {} : { error: capacityMessage }) });
     }
     if (!token || !zone) return json({ error: "Connect Cloudflare in the admin dashboard before using new aliases." }, 409);
-    const rules = await listRules(token, zone);
     if (input.action === "sync") {
-      const { data: aliases, error } = await admin.from("aliases").select("id,local_part").eq("enabled", true).order("created_at", { ascending: false }).order("id").range(input.offset, input.offset + 19);
+      const { data: aliases, error } = await admin.from("aliases").select("id,local_part,domain").eq("enabled", true).order("created_at", { ascending: false }).order("id").range(input.offset, input.offset + 19);
       if (error) throw new Error("Alias lookup failed");
+      const rules = aliases?.some((alias) => alias.domain !== primaryDomain) ? await listRules(token, zone) : [];
+      let apexReady = false;
       const errors: string[] = [];
       let synced = 0;
       for (const alias of aliases || []) {
-        try { await ensureRule(token, zone, rules, alias); synced++; }
-        catch (error) { errors.push(`${alias.local_part}@${domain}: ${error instanceof RoutingError ? error.message : "Routing failed; retry sync."}`); }
+        try {
+          if (alias.domain === primaryDomain) {
+            if (!apexReady) { await requireCatchAll(token, zone); apexReady = true; }
+          } else await ensureRule(token, zone, rules, alias);
+          const { error: activationError } = await admin.from("aliases").update({ routing_ready_at: new Date().toISOString() }).eq("id", alias.id);
+          if (activationError) throw new Error("Activation update failed");
+          synced++;
+        }
+        catch (error) { errors.push(`${alias.local_part}@${alias.domain || domain}: ${error instanceof RoutingError ? error.message : "Routing failed; retry sync."}`); }
       }
       return json({ synced, errors, next_offset: aliases?.length === 20 ? input.offset + 20 : null });
     }
-    const { data: alias, error } = await admin.from("aliases").select("id,local_part,enabled").eq("id", input.alias_id).eq("user_id", user.id).maybeSingle();
+    const { data: alias, error } = await admin.from("aliases").select("id,local_part,domain,enabled").eq("id", input.alias_id).eq("user_id", user.id).maybeSingle();
     if (error) throw new Error("Alias lookup failed");
     if (!alias) return json({ error: "Alias not found" }, 404);
+    if (alias.domain === primaryDomain) {
+      if (input.action === "ensure") {
+        if (!alias.enabled) return json({ error: "Enable this alias before syncing." }, 409);
+        await requireCatchAll(token, zone);
+      }
+      // Apex aliases share one route. Deleting an alias must never remove it.
+      return json({ ready: true });
+    }
+    const rules = await listRules(token, zone);
     if (input.action === "remove") {
       // Only remove rules created by this integration, never unrelated/manual routing rules.
       for (const rule of rules.filter((item) => item.name === `BatMail/${alias.id}`)) {

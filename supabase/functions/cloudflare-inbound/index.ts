@@ -2,9 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 import { Resend } from "npm:resend@6.1.0";
 import { z } from "npm:zod@4.1.0";
-
-const forwardingDomain = "dnd.cspro.space";
-const legacyForwardingDomains = new Set(["mail.batform.online"]);
+import { maskedAddress as maskedFrom, recipientFor } from "../_shared/mail-domains.ts";
 const alphabet = "23456789abcdefghjkmnpqrstuvwxyz";
 
 const prepareSchema = z.object({
@@ -60,6 +58,7 @@ type Alias = {
   id: string;
   user_id: string;
   local_part: string;
+  domain: string;
   destination: string;
   label: string | null;
   enabled: boolean;
@@ -88,19 +87,6 @@ function randomToken(length: number) {
 function normalizeAddress(value: string) {
   const match = value.match(/<([^>]+)>/);
   return (match?.[1] || value).trim().toLowerCase();
-}
-
-function getLocalPart(value: string) {
-  const email = normalizeAddress(value);
-  const at = email.lastIndexOf("@");
-  if (at < 1) return null;
-  const domain = email.slice(at + 1);
-  if (domain !== forwardingDomain && !legacyForwardingDomains.has(domain)) return null;
-  return email.slice(0, at);
-}
-
-function maskedFrom(localPart: string) {
-  return `${localPart}@${forwardingDomain}`;
 }
 
 function isProviderQuotaError(message: string) {
@@ -210,8 +196,9 @@ async function prepareRoute(
   admin: SupabaseClient,
   input: z.infer<typeof prepareSchema>,
 ) {
-  const localPart = getLocalPart(input.to);
-  if (!localPart) return json({ action: "reject", reason: "Unknown BatMail domain" });
+  const recipient = recipientFor(input.to);
+  if (!recipient) return json({ action: "reject", reason: "Unknown BatMail domain" });
+  const localPart = recipient.local_part;
 
   if (shouldDropBeforeStorage(input.subject)) {
     return json({ action: "duplicate" });
@@ -220,7 +207,7 @@ async function prepareRoute(
   const sender = normalizeAddress(input.from);
   const reverseResult = await admin
     .from("reverse_aliases")
-    .select("id,token,sender_email,alias_id,aliases!inner(id,user_id,local_part,destination,label,enabled)")
+    .select("id,token,sender_email,alias_id,aliases!inner(id,user_id,local_part,domain,destination,label,enabled)")
     .eq("token", localPart)
     .limit(1)
     .maybeSingle();
@@ -229,7 +216,7 @@ async function prepareRoute(
   if (reverseResult.data) {
     const reverse = reverseResult.data as unknown as ReverseAlias;
     const alias = reverse.aliases;
-    if (!alias.enabled || sender !== alias.destination.toLowerCase()) {
+    if (!alias.enabled || alias.domain !== recipient.domain || sender !== alias.destination.toLowerCase()) {
       return json({ action: "reject", reason: "Reply address is not authorized" });
     }
 
@@ -239,7 +226,7 @@ async function prepareRoute(
       direction: "reply",
       original_from: sender,
       original_to: reverse.sender_email,
-      masked_sender: maskedFrom(alias.local_part),
+      masked_sender: maskedFrom(alias.local_part, alias.domain),
       subject: input.subject,
       text_body: input.text_body,
     });
@@ -248,8 +235,9 @@ async function prepareRoute(
 
   const aliasResult = await admin
     .from("aliases")
-    .select("id,user_id,local_part,destination,label,enabled")
+    .select("id,user_id,local_part,domain,destination,label,enabled")
     .eq("local_part", localPart)
+    .eq("domain", recipient.domain)
     .eq("enabled", true)
     .limit(1)
     .maybeSingle();
@@ -264,14 +252,14 @@ async function prepareRoute(
     provider_email_id: input.provider_email_id,
     direction: "inbound",
     original_from: sender,
-    original_to: maskedFrom(alias.local_part),
+    original_to: recipient.address,
     subject: input.subject,
     text_body: input.text_body,
   });
   if (!eventId) return json({ action: "duplicate" });
 
   const replyToken = await getOrCreateReverseAlias(admin, alias, sender);
-  const protectedSender = maskedFrom(replyToken);
+  const protectedSender = maskedFrom(replyToken, alias.domain);
   const updated = await admin
     .from("email_events")
     .update({ masked_sender: protectedSender })

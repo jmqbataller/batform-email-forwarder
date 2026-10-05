@@ -1,6 +1,7 @@
 export type AliasRow = {
   id: string;
   local_part: string;
+  domain: string;
   destination: string;
   label: string | null;
   enabled: boolean;
@@ -28,6 +29,7 @@ export type InboxMessageRow = Pick<
 > & {
   aliases: {
     local_part: string;
+    domain: string;
     label: string | null;
   };
 };
@@ -35,6 +37,7 @@ export type InboxMessageRow = Pick<
 export type InboxMessageDetail = EmailEventRow & {
   aliases: {
     local_part: string;
+    domain: string;
     label: string | null;
   };
 };
