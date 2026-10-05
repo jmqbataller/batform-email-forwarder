@@ -2,7 +2,7 @@
 
 ## Cloudflare routing for cspro.space
 
-New random aliases use `cspro.space` through one apex catch-all rule pointing to the `batform-email-forwarder` Worker. Existing aliases retain `dnd.cspro.space`; their literal rules remain in place. `mail.batform.online` remains accepted for existing legacy aliases.
+The New random alias form lets users choose `cspro.space` (the default) or `dnd.cspro.space`. Apex aliases use one catch-all rule pointing to the `batform-email-forwarder` Worker. New `dnd.cspro.space` aliases require an available literal routing slot; the form checks the selected domain before inserting an alias and suggests the apex domain when subdomain capacity is full. Existing aliases retain their domain and routes. `mail.batform.online` remains accepted for existing legacy aliases.
 
 1. Apply the routing connection, activation, and `20261005134000_alias_domains.sql` migrations. The domain migration preserves existing addresses and defaults new rows to `cspro.space`.
 2. Use a Cloudflare token with **Zone / Zone / Read** and **Zone / Email Routing Rules / Edit**, scoped to **cspro.space**. Store the connection through the admin dashboard; credentials stay encrypted in Supabase Vault.

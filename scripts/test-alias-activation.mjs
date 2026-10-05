@@ -11,6 +11,8 @@ let routingFails = false;
 let activationWriteFails = false;
 let connected = true;
 let canCreate = true;
+let expectedDomain = "cspro.space";
+let routingCalls = 0;
 let refreshed = false;
 class Clock extends Date { static now() { return now; } }
 const client = {
@@ -61,12 +63,13 @@ const actions = evaluate("src/app/dashboard/actions.ts", {
   zod: { z },
   "@/lib/random": { randomToken: () => "random1234" },
   "@/lib/supabase/server": { createClient: async () => client },
-  "@/lib/config": { forwardingDomain: "cspro.space" },
+  "@/lib/config": { forwardingDomain: "cspro.space", legacyAliasDomain: "dnd.cspro.space", aliasDomains: ["cspro.space", "dnd.cspro.space"] },
   "@/lib/alias-activation": activation,
   "@/lib/cloudflare-routing": { async invokeRouting(_client, body) {
+    routingCalls += 1;
     if (body.action === "status") {
       assert.equal(body.check_capacity, true);
-      assert.equal(body.domain, "cspro.space");
+      assert.equal(body.domain, expectedDomain, "Capacity must be checked for the selected domain");
       return { connected, can_create: canCreate };
     }
     assert.equal(row.enabled, true, "Only enabled aliases should be provisioned");
@@ -89,6 +92,28 @@ assert.equal(activation.aliasActivation(false, row.routing_ready_at).ready, fals
 assert.equal(activation.aliasActivation(true, new Date(now + 120000).toISOString()).ready, true, "Previously provisioned aliases no longer wait on legacy deadlines");
 const savedTimestamp = row.routing_ready_at;
 assert.equal(activation.aliasActivation(true, savedTimestamp).label, "Active", "Reloads preserve readiness");
+
+expectedDomain = "dnd.cspro.space";
+assert.equal((await actions.createAlias(empty, form({ domain: expectedDomain }))).status, "success");
+assert.equal(row.domain, expectedDomain, "The selected subdomain must be stored on the alias");
+assert.equal(activation.aliasActivation(true, row.routing_ready_at).ready, true);
+canCreate = false;
+const subdomainRow = row;
+const fullSubdomain = await actions.createAlias(empty, form({ domain: expectedDomain }));
+assert.equal(fullSubdomain.status, "error");
+assert.match(fullSubdomain.message, /Choose @cspro\.space/);
+assert.equal(row, subdomainRow, "A full subdomain must not insert an unrouted alias or silently change domains");
+expectedDomain = "cspro.space";
+canCreate = true;
+assert.equal((await actions.createAlias(empty, form({ domain: expectedDomain }))).status, "success");
+assert.equal(row.domain, expectedDomain, "The user can switch back to the apex domain");
+const validRow = row;
+const priorRoutingCalls = routingCalls;
+for (const domain of ["attacker.example", "cspro.space.attacker.example", "", "CSPRO.SPACE"]) {
+  assert.equal((await actions.createAlias(empty, form({ domain }))).status, "error");
+}
+assert.equal(row, validRow, "Unsupported domains must never be inserted");
+assert.equal(routingCalls, priorRoutingCalls, "Unsupported domains must be rejected before provider calls");
 
 routingFails = true;
 assert.equal((await actions.createAlias(empty, form())).status, "error");
@@ -117,4 +142,4 @@ connected = true;
 canCreate = false;
 assert.equal((await actions.createAlias(empty, form())).status, "error");
 assert.equal(row, prior, "Full routing capacity must not create another unusable alias");
-console.log("Alias activation checks passed: immediate post-provisioning availability, legacy waits removed, reload, pause, provider failure, re-enable, rename, database failure, and disconnected routing.");
+console.log("Alias activation checks passed: domain selection, default domain, capacity checks, unsupported domains, immediate post-provisioning availability, legacy waits removed, reload, pause, provider failure, re-enable, rename, database failure, and disconnected routing.");

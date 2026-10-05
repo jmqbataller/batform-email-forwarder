@@ -6,7 +6,7 @@ import { z } from "zod";
 import { randomToken } from "@/lib/random";
 import { createClient } from "@/lib/supabase/server";
 import { invokeRouting } from "@/lib/cloudflare-routing";
-import { forwardingDomain } from "@/lib/config";
+import { aliasDomains, forwardingDomain, legacyAliasDomain } from "@/lib/config";
 
 export type AliasActionState = {
   status: "idle" | "success" | "error";
@@ -68,18 +68,22 @@ export async function logout() {
 export async function createAlias(_state: AliasActionState, formData: FormData): Promise<AliasActionState> {
   const labelResult = z.string().trim().max(60).safeParse(formData.get("label") || "");
   if (!labelResult.success) return { status: "error", message: "The label must be 60 characters or fewer." };
+  const domainResult = z.enum(aliasDomains).safeParse(formData.get("domain") ?? forwardingDomain);
+  if (!domainResult.success) return { status: "error", message: "Choose a supported alias domain." };
+  const domain = domainResult.data;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) redirect("/login");
-  const routing = await invokeRouting(supabase, { action: "status", check_capacity: true, domain: forwardingDomain });
+  const routing = await invokeRouting(supabase, { action: "status", check_capacity: true, domain });
   if (!routing.connected) return { status: "error", message: routing.error || "An admin must connect Cloudflare before creating new aliases." };
+  if (routing.can_create === false && domain === legacyAliasDomain) return { status: "error", message: `@${domain} has no available routing slots. Choose @${forwardingDomain} or ask an admin to free a slot.` };
   if (routing.can_create !== true) return { status: "error", message: routing.error || "Could not verify email routing capacity. Please try again." };
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const { data: alias, error } = await supabase.from("aliases").insert({
       user_id: user.id,
       local_part: randomToken(10),
-      domain: forwardingDomain,
+      domain,
       destination: user.email.toLowerCase(),
       label: labelResult.data || null,
     }).select("id").single();

@@ -1,5 +1,6 @@
 export const forwardingDomain = "cspro.space";
 export const legacyAliasDomain = "dnd.cspro.space";
+export const aliasDomains = [forwardingDomain, legacyAliasDomain] as const;
 
 export function aliasAddress(alias: { local_part: string; domain?: string }) {
   return `${alias.local_part}@${alias.domain || legacyAliasDomain}`;
