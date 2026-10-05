@@ -43,7 +43,10 @@ async function fetchMock(url, options) {
   if (providerFails) return Response.json({ success: false, errors: [{ message: "sensitive submitted data" }] }, { status: 403 });
   const path = new URL(url).pathname;
   if (path === "/client/v4/zones") return Response.json({ success: true, result: [{ id: zoneId, name: "cspro.space" }] });
-  if (options.method === "GET") return Response.json({ success: true, result: structuredClone(rules), result_info: { total_pages: 1 } });
+  if (options.method === "GET") {
+    const page = Number(new URL(url).searchParams.get("page") || 1);
+    return Response.json({ success: true, result: structuredClone(rules.slice((page - 1) * 50, page * 50)), result_info: { total_count: rules.length, per_page: 50 } });
+  }
   writes++;
   if (options.method === "DELETE") {
     rules = rules.filter((rule) => rule.id !== path.split("/").at(-1));
@@ -95,6 +98,12 @@ assert.equal(rules[0].actions[0].value[0], "batform-email-forwarder");
 const before = writes;
 await call({ action: "ensure", alias_id: aliasId });
 assert.equal(writes, before, "Repeated provisioning must not create duplicate rules");
+const managedRule = rules[0];
+rules = Array.from({ length: 55 }, (_, index) => ({ id: `unrelated-${index}`, enabled: true, matchers: [], actions: [] })).concat(managedRule);
+const beforePagedCheck = writes;
+await call({ action: "ensure", alias_id: aliasId });
+assert.equal(writes, beforePagedCheck, "A rule beyond the first page must be found without duplicating it");
+rules = [managedRule];
 aliases[0].local_part = "renamed";
 await call({ action: "ensure", alias_id: aliasId });
 assert.equal(rules.length, 1);

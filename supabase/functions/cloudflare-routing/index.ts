@@ -19,7 +19,7 @@ class RoutingError extends Error {
   constructor(message: string, public status = 502) { super(message); }
 }
 
-async function cloudflare<T>(token: string, path: string, method = "GET", body?: unknown): Promise<{ result: T; result_info?: { total_pages?: number } }> {
+async function cloudflare<T>(token: string, path: string, method = "GET", body?: unknown): Promise<{ result: T; result_info?: { total_pages?: number; total_count?: number; per_page?: number } }> {
   const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
     method,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -41,9 +41,13 @@ async function cloudflare<T>(token: string, path: string, method = "GET", body?:
 async function listRules(token: string, zone: string) {
   const rules: RoutingRule[] = [];
   for (let page = 1; page <= 20; page++) {
-    const data = await cloudflare<RoutingRule[]>(token, `/zones/${zone}/email/routing/rules?per_page=100&page=${page}`);
+    const data = await cloudflare<RoutingRule[]>(token, `/zones/${zone}/email/routing/rules?per_page=50&page=${page}`);
     rules.push(...data.result);
-    if (page >= (data.result_info?.total_pages || 1)) return rules;
+    const info = data.result_info;
+    const totalPages = info?.total_pages ?? (info?.total_count === undefined
+      ? null
+      : Math.ceil(info.total_count / (info.per_page || 50)));
+    if (totalPages !== null ? page >= totalPages : data.result.length < 50) return rules;
   }
   throw new RoutingError("Too many Cloudflare routing rules to reconcile safely.");
 }
