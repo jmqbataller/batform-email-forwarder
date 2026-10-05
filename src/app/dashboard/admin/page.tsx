@@ -3,6 +3,8 @@ import { GridIcon, MailIcon, ShieldIcon } from "@/components/icons";
 import { createClient } from "@/lib/supabase/server";
 import { manageCustomerSubscription } from "./actions";
 import styles from "./admin.module.css";
+import { CloudflareConnection } from "./cloudflare-connection";
+import { invokeRouting } from "@/lib/cloudflare-routing";
 
 export const metadata = { title: "Admin dashboard" };
 export const dynamic = "force-dynamic";
@@ -74,6 +76,7 @@ export default async function AdminDashboardPage() {
 
   const stats = (statsData || fallbackStats) as AdminStats;
   const customers = (customerData || []) as AdminCustomer[];
+  const routing = await invokeRouting(supabase, { action: "status" });
 
   const plans = [
     { label: "Free", value: stats.free, note: "Customers on the free plan" },
@@ -110,6 +113,8 @@ export default async function AdminDashboardPage() {
           <span className="stat-note">Starter, Pro, and Business combined</span>
         </div>
       </div>
+
+      <CloudflareConnection initiallyConnected={routing.connected === true} />
 
       <section className="panel" aria-labelledby="plan-breakdown-heading">
         <div className="panel-head">

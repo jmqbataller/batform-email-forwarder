@@ -1,5 +1,21 @@
 # BatMail
 
+## Cloudflare connection for dnd.cspro.space
+
+The current forwarding domain is `dnd.cspro.space`; `mail.batform.online` remains accepted as a legacy inbound domain.
+Cloudflare does not support catch-all routing on subdomains. BatMail therefore provisions a literal routing rule for each generated alias.
+
+1. Apply `20261005105026_cloudflare_routing_connection.sql` and deploy `supabase/functions/cloudflare-routing/index.ts` with JWT verification enabled.
+2. Create a Cloudflare custom API token with **Zone / Zone / Read** and **Zone / Email Routing Rules / Edit**, scoped to **cspro.space** only.
+3. Open the BatMail admin dashboard, enter the token under **Email routing**, and select **Connect Cloudflare**. The token and discovered zone ID are stored encrypted in Supabase Vault, never in GitHub or browser-visible responses.
+4. The connection form syncs existing active aliases in batches. Review all reported failures; a stored alias is not necessarily a routed alias.
+5. Creating or renaming an alias calls the routing function before reporting readiness. Enabling an alias also ensures its route exists. Deletion removes only rules managed by this integration. Admins can retry failed provisioning with **Sync existing aliases**.
+
+Cloudflare routing rule quotas still apply. If the quota is reached, provisioning reports a failure; request a higher quota or move to an apex-domain catch-all setup before growing beyond it.
+Only admins can configure the token or sync all customers. Individual users may provision only their own aliases. The credential setter RPC is service-role-only.
+
+Run the mocked provider and authorization checks with `node scripts/test-cloudflare-routing.mjs`.
+
 BatMail is a private email-alias service for `batform.online`. It generates
 random addresses at `mail.batform.online`, forwards their messages to the
 owner's verified inbox, and relays replies without exposing that inbox address
@@ -97,8 +113,9 @@ by Vercel. Add `aliases.batform.online` to the project, then point the
 3. Add and verify the owner's destination inbox in Cloudflare Email Routing.
 4. From `cloudflare/`, set `BATMAIL_WORKER_SECRET` with `wrangler secret put`,
    then deploy with `npm run deploy`.
-5. Create a catch-all Email Routing rule for `mail.batform.online` whose action
-   is the `batform-email-forwarder` Worker.
+5. Subdomains require literal Email Routing rules whose action is the
+   `batform-email-forwarder` Worker. Use the automatic connection above for
+   the current `dnd.cspro.space` domain.
 
 Keep the Resend API key in Supabase Vault. Cloudflare receives ordinary inbound
 mail, while Resend delivers the masked copy to the owner inbox and relays replies.

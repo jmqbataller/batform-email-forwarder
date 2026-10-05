@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { randomToken } from "@/lib/random";
 import { createClient } from "@/lib/supabase/server";
+import { invokeRouting } from "@/lib/cloudflare-routing";
 
 export type AliasActionState = {
   status: "idle" | "success" | "error";
@@ -57,16 +58,20 @@ export async function createAlias(_state: AliasActionState, formData: FormData):
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) redirect("/login");
+  const routing = await invokeRouting(supabase, { action: "status" });
+  if (!routing.connected) return { status: "error", message: routing.error || "An admin must connect Cloudflare before creating new aliases." };
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    const { error } = await supabase.from("aliases").insert({
+    const { data: alias, error } = await supabase.from("aliases").insert({
       user_id: user.id,
       local_part: randomToken(10),
       destination: user.email.toLowerCase(),
       label: labelResult.data || null,
-    });
+    }).select("id").single();
     if (!error) {
+      const route = await invokeRouting(supabase, { action: "ensure", alias_id: alias.id });
       refreshAliasViews();
+      if (!route.ready) return { status: "error", message: `Alias saved, but is not ready to receive mail. ${route.error || "Ask an admin to sync email routing."}` };
       return { status: "success", message: "Alias created and ready to receive mail." };
     }
     if (error.message?.includes("ALIAS_QUOTA_REACHED")) {
@@ -88,6 +93,10 @@ export async function toggleAlias(formData: FormData) {
   const { error } = await supabase.from("aliases").update({ enabled: enabled.data !== "true" }).eq("id", id.data).eq("user_id", user.id);
   if (error) throw error;
   refreshAliasViews();
+  if (enabled.data !== "true") {
+    const route = await invokeRouting(supabase, { action: "ensure", alias_id: id.data });
+    if (!route.ready) throw new Error(route.error || "Alias enabled, but email routing needs an admin sync.");
+  }
 }
 
 export async function renameAlias(formData: FormData): Promise<AliasActionState> {
@@ -120,7 +129,9 @@ export async function renameAliasAddress(formData: FormData): Promise<AliasActio
   }
 
   refreshAliasViews();
-  return { status: "success", message: "Alias address updated." };
+  const route = await invokeRouting(access.supabase, { action: "ensure", alias_id: id.data });
+  if (!route.ready) return { status: "error", message: `Address saved, but routing needs attention. ${route.error || "Ask an admin to sync email routing."}` };
+  return { status: "success", message: "Alias address updated and ready to receive mail." };
 }
 
 export async function deleteAlias(formData: FormData): Promise<void> {
@@ -129,6 +140,9 @@ export async function deleteAlias(formData: FormData): Promise<void> {
 
   const access = await getAliasMutationAccess(id.data);
   if (!access.allowed) return;
+
+  const route = await invokeRouting(access.supabase, { action: "remove", alias_id: id.data });
+  if (route.error) throw new Error(route.error);
 
   const { error } = await access.supabase.from("aliases").delete().eq("id", id.data).eq("user_id", access.user.id);
   if (error) return;
