@@ -4,7 +4,8 @@ import { Resend } from "npm:resend@6.1.0";
 import { Webhook } from "npm:svix@1.76.0";
 import { z } from "npm:zod@4.1.0";
 
-const forwardingDomain = "mail.batform.online";
+const forwardingDomain = "dnd.cspro.space";
+const legacyForwardingDomains = new Set(["mail.batform.online"]);
 const alphabet = "23456789abcdefghjkmnpqrstuvwxyz";
 const maxStoredMessageLength = 500_000;
 
@@ -56,7 +57,9 @@ function parseAddress(value: string) {
 function getLocalPart(value: string) {
   const { email } = parseAddress(value);
   const at = email.lastIndexOf("@");
-  if (at < 1 || email.slice(at + 1) !== forwardingDomain) return null;
+  if (at < 1) return null;
+  const domain = email.slice(at + 1);
+  if (domain !== forwardingDomain && !legacyForwardingDomains.has(domain)) return null;
   return email.slice(0, at);
 }
 
