@@ -6,6 +6,11 @@ import { z } from "zod";
 
 const aliasId = "11111111-1111-4111-8111-111111111111";
 const zoneId = "a".repeat(32);
+const canvasphereZoneId = "b".repeat(32);
+let canvasphereZone = null;
+let canvasphereRules = [];
+let mxRecords = [];
+const writeZones = [];
 let aliases = [{ id: aliasId, local_part: "newalias", enabled: true, user_id: "owner" }];
 let secrets = {};
 let rules = [];
@@ -49,23 +54,27 @@ async function fetchMock(url, options) {
   if (providerLimit) return Response.json({ success: false, errors: [{ code: 2018, message: "sensitive submitted data" }] }, { status: 429 });
   if (providerFails) return Response.json({ success: false, errors: [{ message: "sensitive submitted data" }] }, { status: 403 });
   const path = new URL(url).pathname;
-  if (path === "/client/v4/zones") return Response.json({ success: true, result: [{ id: zoneId, name: "cspro.space" }] });
+  if (new URL(url).hostname === "cloudflare-dns.com") return Response.json({ Status: 0, Answer: mxRecords });
+  if (path === "/client/v4/zones") return Response.json({ success: true, result: new URL(url).searchParams.get("name") === "canvasphere.cyou" ? canvasphereZone ? [canvasphereZone] : [] : [{ id: zoneId, name: "cspro.space" }] });
   if (path.endsWith("/catch_all")) return Response.json({ success: true, result: structuredClone(catchAll) });
   if (options.method === "GET") {
     lists++;
     const page = Number(new URL(url).searchParams.get("page") || 1);
-    return Response.json({ success: true, result: structuredClone(rules.slice((page - 1) * 50, page * 50)), result_info: { total_count: rules.length, per_page: 50 } });
+    const scopedRules = path.includes(canvasphereZoneId) ? canvasphereRules : rules;
+    return Response.json({ success: true, result: structuredClone(scopedRules.slice((page - 1) * 50, page * 50)), result_info: { total_count: scopedRules.length, per_page: 50 } });
   }
   writes++;
+  writeZones.push(path.split("/")[4]);
   if (options.method === "DELETE") {
-    rules = rules.filter((rule) => rule.id !== path.split("/").at(-1));
+    if (path.includes(canvasphereZoneId)) canvasphereRules = canvasphereRules.filter((rule) => rule.id !== path.split("/").at(-1));
+    else rules = rules.filter((rule) => rule.id !== path.split("/").at(-1));
     return Response.json({ success: true, result: {} });
   }
   const body = JSON.parse(options.body);
   const id = options.method === "PUT" ? path.split("/").at(-1) : `rule-${writes}`;
-  rules = rules.filter((rule) => rule.id !== id);
   const rule = { ...body, id };
-  rules.push(rule);
+  if (path.includes(canvasphereZoneId)) { canvasphereRules = canvasphereRules.filter((rule) => rule.id !== id); canvasphereRules.push(rule); }
+  else { rules = rules.filter((rule) => rule.id !== id); rules.push(rule); }
   return Response.json({ success: true, result: rule });
 }
 
@@ -167,4 +176,27 @@ assert.equal((await call({ action: "ensure", alias_id: aliasId })).status, 409);
 catchAll.enabled = true;
 catchAll.actions = [{ type: "forward", value: ["other@example.com"] }];
 assert.equal((await call({ action: "ensure", alias_id: aliasId })).status, 409, "A catch-all that forwards elsewhere must not be accepted");
+aliases[0].domain = "beng.canvasphere.cyou";
+const beforeCanvasphere = writes;
+assert.match((await call({ action: "status", check_capacity: true, domain: "beng.canvasphere.cyou" })).body.error, /token must include canvasphere/);
+canvasphereZone = { id: canvasphereZoneId, name: "canvasphere.cyou", status: "pending" };
+assert.match((await call({ action: "ensure", alias_id: aliasId })).body.error, /awaiting Cloudflare activation/);
+canvasphereZone.status = "active";
+assert.match((await call({ action: "ensure", alias_id: aliasId })).body.error, /DNS.*pending/);
+assert.equal(writes, beforeCanvasphere, "Unconfigured domains must not write routes or activate aliases");
+mxRecords = [{ type: 15, data: "10 route1.mx.cloudflare.net." }];
+const legacyRules = JSON.stringify(rules);
+assert.equal((await call({ action: "status", check_capacity: true, domain: "beng.canvasphere.cyou" })).body.can_create, true);
+assert.equal((await call({ action: "ensure", alias_id: aliasId })).body.ready, true);
+assert.equal(writeZones.at(-1), canvasphereZoneId);
+assert.equal(canvasphereRules[0].matchers[0].value, "anotherandom@beng.canvasphere.cyou");
+assert.equal(JSON.stringify(rules), legacyRules, "The new domain must not change existing-zone rules");
+const beforeRepeat = writes;
+await call({ action: "ensure", alias_id: aliasId });
+assert.equal(writes, beforeRepeat);
+mxRecords = [];
+assert.equal((await call({ action: "remove", alias_id: aliasId })).body.ready, true, "Removing a managed route must work even during DNS failure");
+assert.equal(canvasphereRules.length, 0);
+assert.equal(JSON.stringify(rules), legacyRules);
+assert.equal((await call({ action: "status", check_capacity: true, domain: "other.canvasphere.cyou" })).status, 400);
 console.log("Cloudflare routing checks passed: auth, ownership, configuration authorization, provisioning, idempotency, rename, conflict protection, sync errors, pause, and managed deletion.");

@@ -1,5 +1,11 @@
 # BatMail
 
+## Alias domain: beng.canvasphere.cyou
+
+The alias selector also supports `beng.canvasphere.cyou`. Apply the `canvasphere_alias_domain` migration and deploy the Cloudflare inbound handler, the routing function, and the existing email Worker. The Worker stores incoming mail in BatMail and uses the existing authenticated relay to `leejessica0469@gmail.com`.
+
+The routing token needs Zone Read and Email Routing Rules Edit access to both `cspro.space` and `canvasphere.cyou`. Update it through the admin dashboard after Cloudflare activates the new zone. Enable Email Routing for the `beng` subdomain; Cloudflare subdomains use literal per-address rules. New-domain aliases use the new zone's own rule capacity, and existing addresses retain their routes. Creation checks zone activation and public Cloudflare MX records before provisioning a rule; unavailable domains return a setup message instead of creating unusable addresses.
+
 ## Cloudflare routing for cspro.space
 
 The New random alias form lets users choose `cspro.space` (the default) or `dnd.cspro.space`. Apex aliases use one catch-all rule pointing to the `batform-email-forwarder` Worker. New `dnd.cspro.space` aliases require an available literal routing slot; the form checks the selected domain before inserting an alias and suggests the apex domain when subdomain capacity is full. Existing aliases retain their domain and routes. `mail.batform.online` remains accepted for existing legacy aliases.

@@ -26,6 +26,9 @@ test("accepts apex and existing alias domains while rejecting unrelated recipien
   const env = { FORWARDING_DOMAIN: "cspro.space", LEGACY_FORWARDING_DOMAIN: "mail.batform.online" };
   assert.equal(acceptedLocalPart("abc123@cspro.space", env), "abc123");
   assert.equal(acceptedLocalPart("abc123@dnd.cspro.space", env), "abc123");
+  assert.equal(acceptedLocalPart("abc123@beng.canvasphere.cyou", env), "abc123");
+  assert.equal(acceptedLocalPart("abc123@canvasphere.cyou", env), null);
+  assert.equal(acceptedLocalPart("abc123@other.canvasphere.cyou", env), null);
   assert.equal(acceptedLocalPart("abc123@mail.batform.online", env), "abc123");
   assert.equal(acceptedLocalPart("abc123@other.cspro.space", env), null);
 });
@@ -65,7 +68,7 @@ test("processes apex and legacy MIME mail through storage and the configured Gma
     return Response.json(payload.action === "prepare" ? { action: "forward", eventId: "test-event" } : { accepted: true });
   };
   try {
-    for (const domain of ["cspro.space", "dnd.cspro.space"]) {
+    for (const domain of ["cspro.space", "dnd.cspro.space", "beng.canvasphere.cyou"]) {
       const recipient = `abc123@${domain}`;
       const mime = new TextEncoder().encode(`From: sender@example.com\r\nTo: ${recipient}\r\nSubject: Verification message\r\nContent-Type: text/plain\r\n\r\nVerification content\r\n`);
       const message = {
@@ -76,20 +79,20 @@ test("processes apex and legacy MIME mail through storage and the configured Gma
       } as Parameters<typeof worker.email>[0];
       const env = {
         BATMAIL_WORKER_SECRET: "configured-secret", FORWARDING_DOMAIN: "cspro.space", RELAY_DOMAIN: "dnd.cspro.space",
-        SUPABASE_EDGE_URL: "https://backend.example", TEMP_FORWARD_TO: "owner@example.com",
+        SUPABASE_EDGE_URL: "https://backend.example", TEMP_FORWARD_TO: "leejessica0469@gmail.com",
         EMAIL: { async send(payload: Record<string, unknown>) { sent.push(payload); } },
       } as unknown as Parameters<typeof worker.email>[1];
       await worker.email(message, env);
     }
-    assert.equal(sent.length, 2);
+    assert.equal(sent.length, 3);
     for (const delivery of sent) {
-      assert.equal(delivery.to, "owner@example.com");
+      assert.equal(delivery.to, "leejessica0469@gmail.com");
       assert.equal((delivery.from as { email: string }).email, "relay@dnd.cspro.space");
       assert.equal(delivery.subject, "Verification message");
       assert.match(String(delivery.text), /Verification content/);
     }
-    assert.deepEqual(requests.filter((request) => request.action === "prepare").map((request) => request.to), ["abc123@cspro.space", "abc123@dnd.cspro.space"]);
-    assert.equal(requests.filter((request) => request.action === "complete" && request.status === "forwarded").length, 2);
+    assert.deepEqual(requests.filter((request) => request.action === "prepare").map((request) => request.to), ["abc123@cspro.space", "abc123@dnd.cspro.space", "abc123@beng.canvasphere.cyou"]);
+    assert.equal(requests.filter((request) => request.action === "complete" && request.status === "forwarded").length, 3);
   } finally {
     globalThis.fetch = originalFetch;
   }

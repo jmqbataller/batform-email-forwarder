@@ -8,6 +8,14 @@ export type RoutingRule = {
 
 export const domain = "dnd.cspro.space";
 export const primaryDomain = "cspro.space";
+export const canvasphereDomain = "beng.canvasphere.cyou";
+export const aliasDomains = [primaryDomain, domain, canvasphereDomain] as const;
+
+export function zoneNameFor(aliasDomain: string) {
+  if (aliasDomain === canvasphereDomain) return "canvasphere.cyou";
+  if (aliasDomain === primaryDomain || aliasDomain === domain) return primaryDomain;
+  throw new Error("Unsupported alias domain");
+}
 export const worker = "batform-email-forwarder";
 export const capacityMessage = "Email routing capacity is full (200 address rules). An admin must update routing before creating more aliases.";
 

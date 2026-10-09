@@ -8,6 +8,7 @@ import { z } from "zod";
 const aliases = [
   { id: "11111111-1111-4111-8111-111111111111", local_part: "apex123456", domain: "cspro.space", user_id: "owner", destination: "owner@example.com", enabled: true },
   { id: "22222222-2222-4222-8222-222222222222", local_part: "legacy1234", domain: "dnd.cspro.space", user_id: "owner", destination: "owner@example.com", enabled: true },
+  { id: "33333333-3333-4333-8333-333333333333", local_part: "beng123456", domain: "beng.canvasphere.cyou", user_id: "owner", destination: "leejessica0469@gmail.com", enabled: true },
 ];
 const events = [];
 const reverse = [];
@@ -60,6 +61,8 @@ const domains = evaluate("supabase/functions/_shared/mail-domains.ts", {});
 const config = evaluate("src/lib/config.ts", {});
 assert.equal(config.aliasAddress(aliases[0]), "apex123456@cspro.space");
 assert.equal(config.aliasAddress(aliases[1]), "legacy1234@dnd.cspro.space");
+assert.equal(config.aliasAddress(aliases[2]), "beng123456@beng.canvasphere.cyou");
+assert.equal(config.aliasDomains.includes("beng.canvasphere.cyou"), true);
 assert.equal(config.aliasAddress({ local_part: "cachedold" }), "cachedold@dnd.cspro.space");
 assert.equal(domains.recipientFor("Person <Legacy1234@MAIL.BATFORM.ONLINE>").domain, "dnd.cspro.space");
 assert.equal(domains.recipientFor("apex123456@other.cspro.space"), null);
@@ -86,6 +89,14 @@ assert.equal((await call("legacy1234@dnd.cspro.space")).body.action, "forward");
 assert.equal(events[1].original_to, "legacy1234@dnd.cspro.space");
 assert.match(events[1].masked_sender, /@dnd\.cspro\.space$/);
 assert.equal((await call("legacy1234@mail.batform.online")).body.action, "forward");
+const beng = await call("beng123456@beng.canvasphere.cyou");
+assert.equal(beng.body.action, "forward");
+assert.equal(events.at(-1).alias_id, aliases[2].id);
+assert.equal(events.at(-1).original_to, "beng123456@beng.canvasphere.cyou");
+assert.match(events.at(-1).masked_sender, /@beng\.canvasphere\.cyou$/);
+assert.equal((await call("beng123456@canvasphere.cyou")).body.action, "reject");
+assert.equal((await call("beng123456@other.canvasphere.cyou")).body.action, "reject");
+assert.equal((await call("beng123456@cspro.space")).body.action, "reject");
 assert.equal((await call("legacy1234@cspro.space")).body.action, "reject", "An old address must not silently become a new-domain alias");
 assert.equal((await call("apex123456@dnd.cspro.space")).body.action, "reject");
 assert.equal((await call("missingalias@cspro.space")).body.action, "reject");

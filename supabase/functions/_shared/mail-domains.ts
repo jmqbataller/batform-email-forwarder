@@ -1,5 +1,6 @@
 export const primaryDomain = "cspro.space";
 export const legacyAliasDomain = "dnd.cspro.space";
+export const canvasphereAliasDomain = "beng.canvasphere.cyou";
 
 export function recipientFor(value: string) {
   const match = value.match(/<([^>]+)>/);
@@ -7,7 +8,7 @@ export function recipientFor(value: string) {
   const at = address.lastIndexOf("@");
   if (at < 1) return null;
   const domain = address.slice(at + 1);
-  if (![primaryDomain, legacyAliasDomain, "mail.batform.online"].includes(domain)) return null;
+  if (![primaryDomain, legacyAliasDomain, canvasphereAliasDomain, "mail.batform.online"].includes(domain)) return null;
   return { local_part: address.slice(0, at), domain: domain === "mail.batform.online" ? legacyAliasDomain : domain, address };
 }
 

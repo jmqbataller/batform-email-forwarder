@@ -41,7 +41,7 @@ export function localPartFor(value: string, domain: string) {
 }
 
 export function acceptedLocalPart(value: string, env: Pick<Env, "FORWARDING_DOMAIN" | "LEGACY_FORWARDING_DOMAIN" | "LEGACY_FORWARDING_DOMAINS">) {
-  const domains = new Set([env.FORWARDING_DOMAIN, "cspro.space", "dnd.cspro.space", "mail.batform.online", env.LEGACY_FORWARDING_DOMAIN, ...(env.LEGACY_FORWARDING_DOMAINS || "").split(",")]);
+  const domains = new Set([env.FORWARDING_DOMAIN, "cspro.space", "dnd.cspro.space", "beng.canvasphere.cyou", "mail.batform.online", env.LEGACY_FORWARDING_DOMAIN, ...(env.LEGACY_FORWARDING_DOMAINS || "").split(",")]);
   for (const domain of domains) {
     if (!domain?.trim()) continue;
     const localPart = localPartFor(value, domain.trim());

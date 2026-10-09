@@ -6,7 +6,7 @@ import { z } from "zod";
 import { randomToken } from "@/lib/random";
 import { createClient } from "@/lib/supabase/server";
 import { invokeRouting } from "@/lib/cloudflare-routing";
-import { aliasDomains, forwardingDomain, legacyAliasDomain } from "@/lib/config";
+import { aliasDomains, forwardingDomain } from "@/lib/config";
 
 export type AliasActionState = {
   status: "idle" | "success" | "error";
@@ -76,7 +76,7 @@ export async function createAlias(_state: AliasActionState, formData: FormData):
   if (!user?.email) redirect("/login");
   const routing = await invokeRouting(supabase, { action: "status", check_capacity: true, domain });
   if (!routing.connected) return { status: "error", message: routing.error || "An admin must connect Cloudflare before creating new aliases." };
-  if (routing.can_create === false && domain === legacyAliasDomain) return { status: "error", message: `@${domain} has no available routing slots. Choose @${forwardingDomain} or ask an admin to free a slot.` };
+  if (routing.can_create === false && domain !== forwardingDomain) return { status: "error", message: `@${domain} has no available routing slots. Choose @${forwardingDomain} or ask an admin to free a slot.` };
   if (routing.can_create !== true) return { status: "error", message: routing.error || "Could not verify email routing capacity. Please try again." };
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
