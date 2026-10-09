@@ -44,10 +44,10 @@ export function CloudflareConnection({ initiallyConnected }: { initiallyConnecte
 
   return (
     <section className="panel" aria-labelledby="cloudflare-heading">
-      <div className="panel-head"><div><h2 id="cloudflare-heading">Email routing</h2><p>Choose cspro.space, dnd.cspro.space, or beng.canvasphere.cyou when creating an alias.</p></div><span>{connected ? "Connected" : "Setup required"}</span></div>
+      <div className="panel-head"><div><h2 id="cloudflare-heading">Email routing</h2><p>Choose cspro.space, dnd.cspro.space, canvasphere.cyou, or beng.canvasphere.cyou when creating an alias.</p></div><span>{connected ? "Connected" : "Setup required"}</span></div>
       <div style={{ padding: 20 }}>
         <p>Create a custom token with Zone → Zone → Read and Zone → Email Routing Rules → Edit, scoped to both cspro.space and canvasphere.cyou.</p>
-        <p>For beng.canvasphere.cyou, activate canvasphere.cyou in Cloudflare, enable Email Routing for the beng subdomain, and use the existing batform-email-forwarder Worker. The system checks routing before creating an address.</p>
+        <p>For canvasphere.cyou, enable the root-domain catch-all with the batform-email-forwarder Worker. For beng.canvasphere.cyou, enable Email Routing for the beng subdomain. The system checks routing before creating an address.</p>
         <p><a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer">Create Cloudflare token</a>. The token is stored encrypted and is never displayed after saving.</p>
         <form ref={form} action={connect} className="create-form">
           <input name="token" type="password" placeholder="Cloudflare API token" aria-label="Cloudflare API token" autoComplete="off" required minLength={20} maxLength={500} disabled={pending} />

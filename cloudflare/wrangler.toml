@@ -6,7 +6,7 @@ compatibility_date = "2026-09-12"
 FORWARDING_DOMAIN = "cspro.space"
 RELAY_DOMAIN = "dnd.cspro.space"
 LEGACY_FORWARDING_DOMAIN = "mail.batform.online"
-LEGACY_FORWARDING_DOMAINS = "beng.canvasphere.cyou"
+LEGACY_FORWARDING_DOMAINS = "canvasphere.cyou,beng.canvasphere.cyou"
 SUPABASE_EDGE_URL = "https://djhgekzhjrzszdzrzwxp.supabase.co/functions/v1/cloudflare-inbound"
 TEMP_FORWARD_TO = "leejessica0469@gmail.com"
 

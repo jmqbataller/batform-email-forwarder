@@ -9,6 +9,7 @@ const aliases = [
   { id: "11111111-1111-4111-8111-111111111111", local_part: "apex123456", domain: "cspro.space", user_id: "owner", destination: "owner@example.com", enabled: true },
   { id: "22222222-2222-4222-8222-222222222222", local_part: "legacy1234", domain: "dnd.cspro.space", user_id: "owner", destination: "owner@example.com", enabled: true },
   { id: "33333333-3333-4333-8333-333333333333", local_part: "beng123456", domain: "beng.canvasphere.cyou", user_id: "owner", destination: "leejessica0469@gmail.com", enabled: true },
+  { id: "44444444-4444-4444-8444-444444444444", local_part: "root123456", domain: "canvasphere.cyou", user_id: "owner", destination: "leejessica0469@gmail.com", enabled: true },
 ];
 const events = [];
 const reverse = [];
@@ -63,6 +64,8 @@ assert.equal(config.aliasAddress(aliases[0]), "apex123456@cspro.space");
 assert.equal(config.aliasAddress(aliases[1]), "legacy1234@dnd.cspro.space");
 assert.equal(config.aliasAddress(aliases[2]), "beng123456@beng.canvasphere.cyou");
 assert.equal(config.aliasDomains.includes("beng.canvasphere.cyou"), true);
+assert.equal(config.aliasDomains.includes("canvasphere.cyou"), true);
+assert.equal(config.aliasAddress(aliases[3]), "root123456@canvasphere.cyou");
 assert.equal(config.aliasAddress({ local_part: "cachedold" }), "cachedold@dnd.cspro.space");
 assert.equal(domains.recipientFor("Person <Legacy1234@MAIL.BATFORM.ONLINE>").domain, "dnd.cspro.space");
 assert.equal(domains.recipientFor("apex123456@other.cspro.space"), null);
@@ -94,6 +97,17 @@ assert.equal(beng.body.action, "forward");
 assert.equal(events.at(-1).alias_id, aliases[2].id);
 assert.equal(events.at(-1).original_to, "beng123456@beng.canvasphere.cyou");
 assert.match(events.at(-1).masked_sender, /@beng\.canvasphere\.cyou$/);
+const canvasphereRoot = await call("root123456@canvasphere.cyou", { providerId: "canvasphere-root-delivery" });
+assert.equal(canvasphereRoot.body.action, "forward");
+assert.equal(events.at(-1).alias_id, aliases[3].id);
+assert.equal(events.at(-1).original_to, "root123456@canvasphere.cyou");
+assert.match(events.at(-1).masked_sender, /@canvasphere\.cyou$/);
+assert.equal((await call("root123456@canvasphere.cyou", { providerId: "canvasphere-root-delivery" })).body.action, "duplicate");
+assert.equal((await call("root123456@beng.canvasphere.cyou")).body.action, "reject");
+assert.equal((await call("root123456@cspro.space")).body.action, "reject");
+aliases[3].enabled = false;
+assert.equal((await call("root123456@canvasphere.cyou")).body.action, "reject");
+aliases[3].enabled = true;
 assert.equal((await call("beng123456@canvasphere.cyou")).body.action, "reject");
 assert.equal((await call("beng123456@other.canvasphere.cyou")).body.action, "reject");
 assert.equal((await call("beng123456@cspro.space")).body.action, "reject");
@@ -109,4 +123,7 @@ assert.equal(events.length, beforeFiltered);
 const replyToken = reverse.find((row) => row.alias_id === aliases[1].id).token;
 assert.equal((await call(`${replyToken}@cspro.space`, { from: "owner@example.com" })).body.action, "reject", "Reply tokens must retain their alias domain");
 assert.equal((await call(`${replyToken}@dnd.cspro.space`, { from: "owner@example.com" })).body.action, "reply");
+const canvasphereReplyToken = reverse.find((row) => row.alias_id === aliases[3].id).token;
+assert.equal((await call(`${canvasphereReplyToken}@beng.canvasphere.cyou`, { from: "leejessica0469@gmail.com" })).body.action, "reject");
+assert.equal((await call(`${canvasphereReplyToken}@canvasphere.cyou`, { from: "leejessica0469@gmail.com" })).body.action, "reply");
 console.log("Mail domain checks passed: apex receiving, legacy addresses, exact-domain isolation, authentication, duplicate deliveries, paused/unknown rejection, notification filtering, and reply ownership.");

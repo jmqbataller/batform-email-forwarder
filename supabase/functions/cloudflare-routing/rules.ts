@@ -9,10 +9,15 @@ export type RoutingRule = {
 export const domain = "dnd.cspro.space";
 export const primaryDomain = "cspro.space";
 export const canvasphereDomain = "beng.canvasphere.cyou";
-export const aliasDomains = [primaryDomain, domain, canvasphereDomain] as const;
+export const canvasphereRootDomain = "canvasphere.cyou";
+export const aliasDomains = [primaryDomain, domain, canvasphereRootDomain, canvasphereDomain] as const;
+
+export function usesCatchAll(aliasDomain: string) {
+  return aliasDomain === primaryDomain || aliasDomain === canvasphereRootDomain;
+}
 
 export function zoneNameFor(aliasDomain: string) {
-  if (aliasDomain === canvasphereDomain) return "canvasphere.cyou";
+  if (aliasDomain === canvasphereDomain || aliasDomain === canvasphereRootDomain) return canvasphereRootDomain;
   if (aliasDomain === primaryDomain || aliasDomain === domain) return primaryDomain;
   throw new Error("Unsupported alias domain");
 }

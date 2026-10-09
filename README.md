@@ -1,10 +1,10 @@
 # BatMail
 
-## Alias domain: beng.canvasphere.cyou
+## Canvasphere alias domains
 
-The alias selector also supports `beng.canvasphere.cyou`. Apply the `canvasphere_alias_domain` migration and deploy the Cloudflare inbound handler, the routing function, and the existing email Worker. The Worker stores incoming mail in BatMail and uses the existing authenticated relay to `leejessica0469@gmail.com`.
+The alias selector supports `canvasphere.cyou` and `beng.canvasphere.cyou`. Apply the Canvasphere domain migrations and deploy the Cloudflare inbound handler, the routing function, and the existing email Worker. The Worker stores incoming mail in BatMail and uses the existing authenticated relay to `leejessica0469@gmail.com`.
 
-The routing token needs Zone Read and Email Routing Rules Edit access to both `cspro.space` and `canvasphere.cyou`. Update it through the admin dashboard after Cloudflare activates the new zone. Enable Email Routing for the `beng` subdomain; Cloudflare subdomains use literal per-address rules. New-domain aliases use the new zone's own rule capacity, and existing addresses retain their routes. Creation checks zone activation and public Cloudflare MX records before provisioning a rule; unavailable domains return a setup message instead of creating unusable addresses.
+The routing token needs Zone Read and Email Routing Rules Edit access to both `cspro.space` and `canvasphere.cyou`. Enable the `canvasphere.cyou` root catch-all with the **Send to a Worker** action targeting `batform-email-forwarder`. Root-domain aliases use the existing shared route immediately without adding a rule per address or consuming address-rule slots. Unknown, paused, and wrong-domain aliases are still rejected by the database-backed handler. Cloudflare supports catch-all only on the root domain, so `beng.canvasphere.cyou` aliases continue to use literal rules in the new zone. Creation checks zone activation and the selected domain's public Cloudflare MX records; unavailable domains return a setup message instead of creating unusable addresses.
 
 ## Cloudflare routing for cspro.space
 

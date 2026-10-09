@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { z } from "npm:zod@4.1.0";
-import { aliasDomains, canvasphereDomain, capacityMessage, catchAllReady, domain, hasRoutingCapacity, primaryDomain, ruleBody, ruleForAddress, routesToWorker, zoneNameFor, type RoutingRule } from "./rules.ts";
+import { aliasDomains, capacityMessage, catchAllReady, domain, hasRoutingCapacity, primaryDomain, ruleBody, ruleForAddress, routesToWorker, usesCatchAll, zoneNameFor, type RoutingRule } from "./rules.ts";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("connect"), token: z.string().trim().min(20).max(500) }),
@@ -70,13 +70,13 @@ async function ensureRule(token: string, zone: string, rules: RoutingRule[], ali
   rules.push(data.result);
 }
 
-async function requireCatchAll(token: string, zone: string) {
+async function requireCatchAll(token: string, zone: string, aliasDomain: string) {
   const { result } = await cloudflare<RoutingRule>(token, `/zones/${zone}/email/routing/rules/catch_all`);
-  if (!catchAllReady(result)) throw new RoutingError("An admin must activate the cspro.space catch-all for the BatMail Worker before using new aliases.", 409);
+  if (!catchAllReady(result)) throw new RoutingError(`An admin must activate the ${aliasDomain} catch-all for the BatMail Worker before using new aliases.`, 409);
 }
 
-async function requireCanvasphereMx() {
-  const response = await fetch(`https://cloudflare-dns.com/dns-query?name=${canvasphereDomain}&type=MX`, {
+async function requireCanvasphereMx(aliasDomain: string) {
+  const response = await fetch(`https://cloudflare-dns.com/dns-query?name=${aliasDomain}&type=MX`, {
     headers: { Accept: "application/dns-json" },
     signal: AbortSignal.timeout(10000),
   });
@@ -84,7 +84,7 @@ async function requireCanvasphereMx() {
   const dns = await response.json();
   const records = (dns.Answer || []).filter((record: { type: number }) => record.type === 15);
   if (dns.Status !== 0 || !records.length || !records.every((record: { data: string }) => /^\d+\s+[^\s]+\.mx\.cloudflare\.net\.?$/i.test(record.data))) {
-    throw new RoutingError(`Email Routing DNS for @${canvasphereDomain} is still pending. Enable the beng subdomain in Cloudflare before creating aliases.`, 409);
+    throw new RoutingError(`Email Routing DNS for @${aliasDomain} is still pending. Enable this domain in Cloudflare before creating aliases.`, 409);
   }
 }
 
@@ -125,27 +125,32 @@ Deno.serve(async (request) => {
       return json({ connected: true });
     }
     const [token, zone] = await Promise.all([secret("batmail_cloudflare_api_token"), secret("batmail_cloudflare_zone_id")]);
-    const zones = new Map<string, string>();
+    const zones = new Map<string, { id: string; status: string }>();
+    const readyDomains = new Set<string>();
     async function zoneFor(aliasDomain: string, requireReady = true) {
       const zoneName = zoneNameFor(aliasDomain);
       if (zoneName === primaryDomain) return zone!;
-      const cached = zones.get(zoneName);
-      if (cached) return cached;
-      const { result } = await cloudflare<{ id: string; name: string; status: string }[]>(token!, `/zones?name=${zoneName}`);
-      const found = result.find((item) => item.name === zoneName);
-      if (!found) throw new RoutingError(`The Cloudflare token must include ${zoneName}. Ask an admin to update the connection with access to both zones.`, 409);
+      let found = zones.get(zoneName);
+      if (!found) {
+        const { result } = await cloudflare<{ id: string; name: string; status: string }[]>(token!, `/zones?name=${zoneName}`);
+        found = result.find((item) => item.name === zoneName);
+        if (!found) throw new RoutingError(`The Cloudflare token must include ${zoneName}. Ask an admin to update the connection with access to both zones.`, 409);
+        zones.set(zoneName, found);
+      }
       if (requireReady) {
         if (found.status !== "active") throw new RoutingError(`${zoneName} is awaiting Cloudflare activation. Retry when its nameservers are active.`, 409);
-        await requireCanvasphereMx();
+        if (!readyDomains.has(aliasDomain)) {
+          await requireCanvasphereMx(aliasDomain);
+          readyDomains.add(aliasDomain);
+        }
       }
-      zones.set(zoneName, found.id);
       return found.id;
     }
     if (input.action === "status") {
       const connected = Boolean(token && zone);
       if (!connected || !input.check_capacity) return json({ connected });
-      if (input.domain === primaryDomain) {
-        await requireCatchAll(token!, zone!);
+      if (usesCatchAll(input.domain)) {
+        await requireCatchAll(token!, await zoneFor(input.domain), input.domain);
         return json({ connected, can_create: true });
       }
       const can_create = hasRoutingCapacity(await listRules(token!, await zoneFor(input.domain)));
@@ -156,15 +161,19 @@ Deno.serve(async (request) => {
       const { data: aliases, error } = await admin.from("aliases").select("id,local_part,domain").eq("enabled", true).order("created_at", { ascending: false }).order("id").range(input.offset, input.offset + 19);
       if (error) throw new Error("Alias lookup failed");
       const rulesByZone = new Map<string, RoutingRule[]>();
-      let apexReady = false;
+      const catchAllZones = new Set<string>();
       const errors: string[] = [];
       let synced = 0;
       for (const alias of aliases || []) {
         try {
-          if (alias.domain === primaryDomain) {
-            if (!apexReady) { await requireCatchAll(token, zone); apexReady = true; }
+          const aliasDomain = alias.domain || domain;
+          const aliasZone = await zoneFor(aliasDomain);
+          if (usesCatchAll(aliasDomain)) {
+            if (!catchAllZones.has(aliasZone)) {
+              await requireCatchAll(token, aliasZone, aliasDomain);
+              catchAllZones.add(aliasZone);
+            }
           } else {
-            const aliasZone = await zoneFor(alias.domain || domain);
             let rules = rulesByZone.get(aliasZone);
             if (!rules) { rules = await listRules(token, aliasZone); rulesByZone.set(aliasZone, rules); }
             await ensureRule(token, aliasZone, rules, alias);
@@ -180,10 +189,10 @@ Deno.serve(async (request) => {
     const { data: alias, error } = await admin.from("aliases").select("id,local_part,domain,enabled").eq("id", input.alias_id).eq("user_id", user.id).maybeSingle();
     if (error) throw new Error("Alias lookup failed");
     if (!alias) return json({ error: "Alias not found" }, 404);
-    if (alias.domain === primaryDomain) {
+    if (usesCatchAll(alias.domain || domain)) {
       if (input.action === "ensure") {
         if (!alias.enabled) return json({ error: "Enable this alias before syncing." }, 409);
-        await requireCatchAll(token, zone);
+        await requireCatchAll(token, await zoneFor(alias.domain), alias.domain);
       }
       // Apex aliases share one route. Deleting an alias must never remove it.
       return json({ ready: true });

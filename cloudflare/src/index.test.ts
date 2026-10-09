@@ -27,7 +27,7 @@ test("accepts apex and existing alias domains while rejecting unrelated recipien
   assert.equal(acceptedLocalPart("abc123@cspro.space", env), "abc123");
   assert.equal(acceptedLocalPart("abc123@dnd.cspro.space", env), "abc123");
   assert.equal(acceptedLocalPart("abc123@beng.canvasphere.cyou", env), "abc123");
-  assert.equal(acceptedLocalPart("abc123@canvasphere.cyou", env), null);
+  assert.equal(acceptedLocalPart("abc123@canvasphere.cyou", env), "abc123");
   assert.equal(acceptedLocalPart("abc123@other.canvasphere.cyou", env), null);
   assert.equal(acceptedLocalPart("abc123@mail.batform.online", env), "abc123");
   assert.equal(acceptedLocalPart("abc123@other.cspro.space", env), null);
@@ -68,7 +68,7 @@ test("processes apex and legacy MIME mail through storage and the configured Gma
     return Response.json(payload.action === "prepare" ? { action: "forward", eventId: "test-event" } : { accepted: true });
   };
   try {
-    for (const domain of ["cspro.space", "dnd.cspro.space", "beng.canvasphere.cyou"]) {
+    for (const domain of ["cspro.space", "dnd.cspro.space", "canvasphere.cyou", "beng.canvasphere.cyou"]) {
       const recipient = `abc123@${domain}`;
       const mime = new TextEncoder().encode(`From: sender@example.com\r\nTo: ${recipient}\r\nSubject: Verification message\r\nContent-Type: text/plain\r\n\r\nVerification content\r\n`);
       const message = {
@@ -84,15 +84,15 @@ test("processes apex and legacy MIME mail through storage and the configured Gma
       } as unknown as Parameters<typeof worker.email>[1];
       await worker.email(message, env);
     }
-    assert.equal(sent.length, 3);
+    assert.equal(sent.length, 4);
     for (const delivery of sent) {
       assert.equal(delivery.to, "leejessica0469@gmail.com");
       assert.equal((delivery.from as { email: string }).email, "relay@dnd.cspro.space");
       assert.equal(delivery.subject, "Verification message");
       assert.match(String(delivery.text), /Verification content/);
     }
-    assert.deepEqual(requests.filter((request) => request.action === "prepare").map((request) => request.to), ["abc123@cspro.space", "abc123@dnd.cspro.space", "abc123@beng.canvasphere.cyou"]);
-    assert.equal(requests.filter((request) => request.action === "complete" && request.status === "forwarded").length, 3);
+    assert.deepEqual(requests.filter((request) => request.action === "prepare").map((request) => request.to), ["abc123@cspro.space", "abc123@dnd.cspro.space", "abc123@canvasphere.cyou", "abc123@beng.canvasphere.cyou"]);
+    assert.equal(requests.filter((request) => request.action === "complete" && request.status === "forwarded").length, 4);
   } finally {
     globalThis.fetch = originalFetch;
   }
